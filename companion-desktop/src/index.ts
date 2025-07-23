@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { createServer } from 'http';
+import * as net from 'net';
 import express from 'express';
 import cors from 'cors';
 import { SignalingServer } from './signaling/SignalingServer';
@@ -156,14 +157,26 @@ class CompanionApp {
     this.signalingServer.onSignalingMessage((clientId: string, message: any) => {
       void this.webrtcManager.handleSignalingMessage(clientId, message);
     });
+
+    // Connect WebRTC signaling back to SignalingServer (bidirectional)
+    this.webrtcManager.setSignalingCallback((clientId: string, message: any) => {
+      this.signalingServer.sendToClient(clientId, message);
+    });
   }
 
   async start(): Promise<void> {
-    const signalingPort = parseInt(process.env['SIGNALING_PORT'] ?? '3000');
+    const signalingPort = parseInt(process.env['SIGNALING_PORT'] ?? '3001'); // Fixed default port
     
     try {
       // Initialize OpenAI connection
       await this.openAIBridge.initialize();
+      
+      // Check if port is available before binding
+      const isPortAvailable = await this.checkPortAvailable(signalingPort);
+      if (!isPortAvailable) {
+        logger.error('Port already in use - graceful shutdown in progress', { port: signalingPort });
+        await this.waitForPortToBeAvailable(signalingPort, 30000); // Wait up to 30s
+      }
       
       // Start server
       this.server.listen(signalingPort, () => {
@@ -182,6 +195,46 @@ class CompanionApp {
       logger.error('Failed to start application', { error });
       process.exit(1);
     }
+  }
+
+  private async checkPortAvailable(port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const server = net.createServer();
+      
+      server.listen(port, () => {
+        server.once('close', () => resolve(true));
+        server.close();
+      });
+      
+      server.on('error', () => resolve(false));
+    });
+  }
+
+  private async waitForPortToBeAvailable(port: number, timeoutMs: number): Promise<void> {
+    const startTime = Date.now();
+    const checkInterval = 1000; // Check every 1 second
+    
+    return new Promise((resolve, reject) => {
+      const checkPort = async () => {
+        const available = await this.checkPortAvailable(port);
+        
+        if (available) {
+          logger.info('Port became available', { port });
+          resolve();
+          return;
+        }
+        
+        if (Date.now() - startTime > timeoutMs) {
+          reject(new Error(`Port ${port} did not become available within ${timeoutMs}ms`));
+          return;
+        }
+        
+        logger.info('Waiting for port to become available...', { port, elapsed: Date.now() - startTime });
+        setTimeout(checkPort, checkInterval);
+      };
+      
+      checkPort();
+    });
   }
 
   async stop(): Promise<void> {
