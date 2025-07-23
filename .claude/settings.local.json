@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(./gradlew build:*)",
+      "Bash(java:*)",
+      "Bash(gradlew:*)",
+      "Bash(cmd:*)",
+      "Bash(echo $JAVA_HOME)",
+      "Bash(ls:*)",
+      "Bash(export JAVA_HOME=\"C:/Program Files/Android/Android Studio/jbr\")",
+      "Bash(./gradlew:*)",
+      "Bash(npm install:*)",
+      "Bash(npm start)",
+      "Bash(adb:*)",
+      "Bash(curl:*)",
+      "Bash(.gradlew.bat assembleDebug)",
+      "Bash(where java)",
+      "Bash(cat:*)",
+      "Bash(\"C:\\Program Files\\Android\\Android Studio\\jbr\\bin\\java.exe\" -version)",
+      "Bash(JAVA_HOME=\"C:\\Program Files\\Android\\Android Studio\\jbr\" ./gradlew assembleDebug)",
+      "Bash(cp:*)",
+      "Bash(chmod:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}

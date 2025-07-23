@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <!-- Iniciar/Parar Captura de Áudio -->
+    <item
+        android:id="@+id/action_toggle_audio"
+        android:title="Iniciar Áudio"
+        android:icon="@android:drawable/ic_btn_speak_now" />
+    
+    <!-- Tirar Snapshot -->
+    <item
+        android:id="@+id/action_take_snapshot"
+        android:title="Tirar Foto"
+        android:icon="@android:drawable/ic_menu_camera" />
+    
+    <!-- Status da Conexão -->
+    <item
+        android:id="@+id/action_connection_status"
+        android:title="Status: Desconectado"
+        android:icon="@android:drawable/ic_menu_info_details" />
+    
+    <!-- Configurações -->
+    <item
+        android:id="@+id/action_settings"
+        android:title="Configurações"
+        android:icon="@android:drawable/ic_menu_preferences" />
+        
+</menu>
