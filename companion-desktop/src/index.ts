@@ -166,6 +166,51 @@ class CompanionApp {
       
       return res.json({ success: true, message: `Temperature set to ${temperature}` });
     });
+
+    // Log analysis endpoint for debugging
+    this.app.get('/logs/recent', (req, res) => {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const lines = parseInt(req.query.lines as string) || 100;
+        const filter = req.query.filter as string;
+        
+        const logFile = path.join(process.cwd(), 'logs', 'companion.log');
+        
+        if (!fs.existsSync(logFile)) {
+          return res.json({ logs: [], message: 'Log file not found' });
+        }
+        
+        const logContent = fs.readFileSync(logFile, 'utf8');
+        let logLines = logContent.split('\n').filter(line => line.trim()).slice(-lines);
+        
+        // Apply filter if provided
+        if (filter) {
+          const filterTerms = filter.split(',').map(term => term.trim().toLowerCase());
+          logLines = logLines.filter(line => 
+            filterTerms.some(term => line.toLowerCase().includes(term))
+          );
+        }
+        
+        const parsedLogs = logLines.map(line => {
+          try {
+            return JSON.parse(line);
+          } catch {
+            return { message: line, raw: true };
+          }
+        });
+        
+        res.json({ 
+          logs: parsedLogs,
+          count: parsedLogs.length,
+          totalLines: logContent.split('\n').length
+        });
+        
+      } catch (error) {
+        logger.error('Failed to read logs', { error });
+        res.status(500).json({ error: 'Failed to read logs' });
+      }
+    });
   }
 
   private connectComponents(): void {
