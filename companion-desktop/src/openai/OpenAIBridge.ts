@@ -26,21 +26,29 @@ export class OpenAIBridge {
       throw new Error('OPENAI_API_KEY environment variable is required');
     }
 
-    this.currentInstructions = `You are a helpful AI assistant for Vuzix M400 smart glasses.
+    // VideoSDK pattern: Smart glasses optimized instructions
+    this.currentInstructions = `You are a smart glasses AI assistant for Vuzix M400. Follow VideoSDK best practices:
 
-IMPORTANT GUIDELINES:
-- Keep ALL responses very brief and concise (max 2 sentences)
-- Responses should be suitable for heads-up display (HUD)
-- Focus on actionable information
-- Use simple, clear language
-- Avoid long explanations or detailed descriptions
-- For visual content, describe only the most important elements
+CRITICAL HUD CONSTRAINTS:
+- Maximum 50 words per response (HUD space limited)
+- Always use display_on_hud tool to show text
+- Confirm text display with "Displayed: [text]"
+- Use simple, actionable language
+- Prioritize essential information only
 
-You can help with:
-- Answering questions about what you see in images
-- Providing quick information and assistance
-- Giving brief instructions or guidance
-- Identifying objects and text in images`;
+RESPONSE FORMAT:
+1. Process user input
+2. Generate brief response (≤50 words)
+3. Use display_on_hud tool to show text
+4. Confirm display completion
+
+CAPABILITIES:
+- Visual analysis (describe key elements only)
+- Quick information lookup
+- Brief guidance and instructions
+- Object/text identification
+
+Remember: Every response MUST use display_on_hud tool for HUD delivery.`;
 
     this.realtimeClient = new RealtimeClient(apiKey);
     this.openaiClient = new OpenAI({
@@ -63,16 +71,31 @@ You can help with:
     });
 
     this.realtimeClient.on('text_complete', (text: string) => {
-      logger.info('Text response received from OpenAI', { 
+      logger.info('🎯 TEXT_COMPLETE received from OpenAI - sending to WebRTC', { 
         length: text.length,
-        preview: text.substring(0, 100) + '...'
+        preview: text.substring(0, 100) + '...',
+        callbackSet: !!this.onTextResponseCallback
       });
-      this.onTextResponseCallback?.(text);
+      
+      if (this.onTextResponseCallback) {
+        this.onTextResponseCallback(text);
+        logger.info('🎯 Text response forwarded to WebRTC callback');
+      } else {
+        logger.error('🚨 NO TEXT RESPONSE CALLBACK SET! Text cannot be sent to M400');
+      }
     });
 
     this.realtimeClient.on('text_delta', (text: string) => {
-      // Handle streaming text if needed
-      logger.debug('Text delta received', { text });
+      // VideoSDK pattern: Stream text to HUD as it arrives (better UX)
+      logger.debug('🎯 TEXT_DELTA received - streaming to HUD', { 
+        text: text.substring(0, 50) + '...',
+        length: text.length 
+      });
+      
+      if (this.onTextResponseCallback) {
+        this.onTextResponseCallback(text);
+        logger.debug('🎯 Text delta forwarded to WebRTC for streaming display');
+      }
     });
 
     this.realtimeClient.on('audio_complete', (audioPart: any) => {
@@ -98,6 +121,22 @@ You can help with:
     this.realtimeClient.on('error', (error: Error) => {
       logger.error('Realtime client error', { error });
       this.isConnectedFlag = false;
+    });
+
+    // VideoSDK pattern: Handle display_on_hud tool calls
+    this.realtimeClient.on('hud_display_request', (data: { text: string; priority: string; call_id: string }) => {
+      logger.info('🎯 HUD_DISPLAY_REQUEST received from OpenAI tool', { 
+        text: data.text.substring(0, 50) + '...',
+        priority: data.priority,
+        call_id: data.call_id
+      });
+      
+      if (this.onTextResponseCallback) {
+        this.onTextResponseCallback(data.text);
+        logger.info('🎯 Tool-triggered text forwarded to WebRTC successfully');
+      } else {
+        logger.error('🚨 NO TEXT RESPONSE CALLBACK for tool-triggered display!');
+      }
     });
   }
 

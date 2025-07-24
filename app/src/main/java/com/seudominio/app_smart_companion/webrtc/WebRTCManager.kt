@@ -79,9 +79,12 @@ object WebRTCManager {
             return null
         }
         
-        // ICE servers configuration
+        // ICE servers configuration - múltiplos STUN servers para melhor conectividade
         val iceServers = listOf(
-            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun1.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun2.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun.stunprotocol.org:3478").createIceServer()
         )
         
         // RTC Configuration

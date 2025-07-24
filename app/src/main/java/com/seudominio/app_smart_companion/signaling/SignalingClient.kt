@@ -152,7 +152,7 @@ class SignalingClient(
         sendMessage(message)
     }
     
-    private fun sendMessage(message: JSONObject) {
+    fun sendMessage(message: JSONObject) {
         if (!isConnected) {
             Log.w(TAG, "Not connected, cannot send message")
             return

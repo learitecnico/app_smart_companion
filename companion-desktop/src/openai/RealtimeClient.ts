@@ -41,6 +41,7 @@ export class RealtimeClient extends EventEmitter {
   constructor(private apiKey: string) {
     super();
     
+    // VideoSDK pattern: Smart glasses optimized session config
     this.sessionConfig = {
       modalities: ['text', 'audio'],
       instructions: `You are a helpful AI assistant for smart glasses. 
@@ -58,7 +59,31 @@ export class RealtimeClient extends EventEmitter {
         prefix_padding_ms: 300,
         silence_duration_ms: 500  // OpenAI recommended default (was 200ms - too aggressive)
       },
-      temperature: 0.8
+      // VideoSDK smart glasses optimizations
+      temperature: 0.3,  // More deterministic for HUD display
+      tools: [
+        {
+          type: 'function',
+          name: 'display_on_hud',
+          description: 'Display text on smart glasses HUD - ALWAYS use this tool for text responses',
+          parameters: {
+            type: 'object',
+            properties: {
+              text: {
+                type: 'string',
+                description: 'Text to display on HUD (max 50 words)'
+              },
+              priority: {
+                type: 'string',
+                enum: ['low', 'medium', 'high'],
+                description: 'Display priority level'
+              }
+            },
+            required: ['text']
+          }
+        }
+      ],
+      tool_choice: 'auto'  // Allow OpenAI to decide when to use tools
     };
   }
 
@@ -204,6 +229,23 @@ export class RealtimeClient extends EventEmitter {
         this.emit('response_complete', event.response);
         break;
 
+      // VideoSDK pattern: Handle tool calls
+      case 'response.function_call_arguments.delta':
+        logger.debug('Function call arguments delta', { 
+          call_id: event.call_id,
+          name: event.name 
+        });
+        break;
+
+      case 'response.function_call_arguments.done':
+        logger.info('🎯 FUNCTION CALL completed', { 
+          call_id: event.call_id,
+          name: event.name,
+          arguments: event.arguments 
+        });
+        this.handleFunctionCall(event);
+        break;
+
       case 'input_audio_buffer.speech_started':
         logger.debug('Speech started');
         this.emit('speech_started');
@@ -252,6 +294,63 @@ export class RealtimeClient extends EventEmitter {
       default:
         logger.debug('Unhandled event type', { type: event.type });
     }
+  }
+
+  // VideoSDK pattern: Handle function calls (display_on_hud tool)
+  private handleFunctionCall(event: RealtimeEvent): void {
+    const { call_id, name, arguments: args } = event;
+    
+    if (name === 'display_on_hud') {
+      try {
+        const parsedArgs = JSON.parse(args);
+        const { text, priority = 'medium' } = parsedArgs;
+        
+        logger.info('🎯 DISPLAY_ON_HUD tool called', { 
+          text: text.substring(0, 50) + '...',
+          priority,
+          call_id 
+        });
+        
+        // Emit to OpenAIBridge for forwarding to WebRTC
+        this.emit('hud_display_request', { text, priority, call_id });
+        
+        // Send function call result back to OpenAI
+        this.sendFunctionCallResult(call_id, {
+          success: true,
+          message: `Text displayed on HUD: "${text.substring(0, 30)}..."`
+        });
+        
+      } catch (error) {
+        logger.error('Failed to handle display_on_hud call', { error });
+        this.sendFunctionCallResult(call_id, {
+          success: false,
+          error: 'Failed to display text on HUD'
+        });
+      }
+    } else {
+      logger.warn('Unknown function call', { name, call_id });
+      this.sendFunctionCallResult(call_id, {
+        success: false,
+        error: `Unknown function: ${name}`
+      });
+    }
+  }
+
+  private sendFunctionCallResult(call_id: string, result: any): void {
+    const event: RealtimeEvent = {
+      event_id: this.generateEventId(),
+      type: 'conversation.item.create',
+      item: {
+        type: 'function_call_output',
+        call_id: call_id,
+        output: JSON.stringify(result)
+      }
+    };
+    
+    this.sendEvent(event);
+    this.createResponse(); // Generate follow-up response
+    
+    logger.debug('Function call result sent', { call_id, result });
   }
 
   sendAudio(audioBuffer: Buffer): void {

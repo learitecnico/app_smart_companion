@@ -516,6 +516,9 @@ class WebRTCService : Service() {
     }
     
     private fun handleDataChannelMessage(messageType: String, json: JSONObject) {
+        Log.i(TAG, "🎯 DATA CHANNEL MESSAGE RECEIVED", json)
+        Log.i(TAG, "🎯 Message type: $messageType")
+        
         when (messageType) {
             "capture_snapshot" -> {
                 Log.d(TAG, "Snapshot request received")
@@ -523,11 +526,37 @@ class WebRTCService : Service() {
             }
             "model_text" -> {
                 val text = json.optString("text", "")
-                Log.d(TAG, "Model text received: $text")
+                val messageId = json.optString("message_id", "")
+                val requiresConfirmation = json.optBoolean("requires_confirmation", false)
+                val seq = json.optInt("seq", -1)
+                val ts = json.optLong("ts", 0)
+                
+                Log.i(TAG, "🎯 MODEL_TEXT received from Desktop!")
+                Log.i(TAG, "🎯 Text: $text")
+                Log.i(TAG, "🎯 Message ID: $messageId")
+                Log.i(TAG, "🎯 Requires confirmation: $requiresConfirmation")
+                Log.i(TAG, "🎯 Seq: $seq, Timestamp: $ts")
+                Log.i(TAG, "🎯 HudOverlayManager available: ${hudOverlayManager != null}")
                 
                 // Display text on HUD
-                hudOverlayManager?.showText(text)
-                hudOverlayManager?.updateStatus("Response received")
+                hudOverlayManager?.let { hud ->
+                    Log.i(TAG, "🎯 Calling showText() on HudOverlayManager")
+                    hud.showText(text)
+                    hud.updateStatus("Response received at ${System.currentTimeMillis()}")
+                    Log.i(TAG, "🎯 HUD text updated successfully!")
+                    
+                    // VideoSDK pattern: Send confirmation back to Desktop
+                    if (requiresConfirmation && messageId.isNotEmpty()) {
+                        sendDisplayConfirmation(messageId, "displayed")
+                    }
+                } ?: run {
+                    Log.e(TAG, "🚨 HudOverlayManager is NULL - cannot display text!")
+                    
+                    // Send failure confirmation if HUD unavailable
+                    if (requiresConfirmation && messageId.isNotEmpty()) {
+                        sendDisplayConfirmation(messageId, "failed_no_hud")
+                    }
+                }
             }
             "model_audio" -> {
                 Log.d(TAG, "Model audio response received")
@@ -536,6 +565,26 @@ class WebRTCService : Service() {
             else -> {
                 Log.w(TAG, "Unknown message type: $messageType")
             }
+        }
+    }
+    
+    // VideoSDK pattern: Send display confirmation back to Desktop
+    private fun sendDisplayConfirmation(messageId: String, status: String) {
+        try {
+            val confirmation = JSONObject().apply {
+                put("type", "display_confirmed")
+                put("message_id", messageId)
+                put("status", status)
+                put("timestamp", System.currentTimeMillis())
+                put("device_id", "m400_${System.currentTimeMillis()}")
+            }
+            
+            dataChannelManager?.sendMessage(confirmation.toString())
+            Log.i(TAG, "🎯 DISPLAY CONFIRMATION sent to Desktop")
+            Log.i(TAG, "🎯 Message ID: $messageId, Status: $status")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "🚨 Failed to send display confirmation", e)
         }
     }
     

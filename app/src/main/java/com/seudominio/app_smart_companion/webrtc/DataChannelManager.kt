@@ -32,17 +32,27 @@ class DataChannelManager(
     }
     
     private fun createDataChannel() {
+        Log.i(TAG, "🎯 CREATING DATACHANNEL - this should trigger onRenegotiationNeeded")
+        
         val init = DataChannel.Init().apply {
             ordered = true
             negotiated = false
             id = -1
         }
         
+        Log.d(TAG, "🎯 About to call peerConnection.createDataChannel()")
         dataChannel = peerConnection.createDataChannel(DATA_CHANNEL_LABEL, init)
+        
+        Log.i(TAG, "🎯 DATACHANNEL CREATED: ${dataChannel != null}")
+        Log.d(TAG, "🎯 DataChannel state: ${dataChannel?.state()}")
         dataChannel?.registerObserver(object : DataChannel.Observer {
             override fun onStateChange() {
-                Log.d(TAG, "DataChannel state changed: ${dataChannel?.state()}")
+                Log.i(TAG, "🎯 DATACHANNEL STATE CHANGED: ${dataChannel?.state()}")
                 isChannelOpen = dataChannel?.state() == DataChannel.State.OPEN
+                
+                if (dataChannel?.state() == DataChannel.State.OPEN) {
+                    Log.i(TAG, "🎯 DATACHANNEL OPEN! Ready to send audio data")
+                }
                 
                 if (isChannelOpen) {
                     flushMessageQueue()
@@ -108,13 +118,14 @@ class DataChannelManager(
                 val buffer = ByteBuffer.wrap(message.toByteArray())
                 val dataBuffer = DataChannel.Buffer(buffer, false)
                 dataChannel?.send(dataBuffer)
+                Log.v(TAG, "🎯 Message sent via DataChannel (${message.length} chars)")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to send message", e)
                 messageQueue.add(message)
             }
         } else {
             messageQueue.add(message)
-            Log.d(TAG, "DataChannel not open, queuing message")
+            Log.w(TAG, "🎯 DataChannel NOT OPEN (state: ${dataChannel?.state()}), queuing message")
         }
     }
     
