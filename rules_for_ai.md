@@ -12,7 +12,7 @@
 
 ---
 
-## 2. Sempre faça estes passos primeiro
+## 2. SEMPRE faça estes passos primeiro
 
 1. **Ler/atualizar** os arquivos:
    - `PROJECT_BRIEF.md`
@@ -22,6 +22,15 @@
    - `git status`, `git diff`, `git log -n 5` para entender mudanças recentes.
    - Listar rapidamente os arquivos-chave da área que vai mexer.
 3. **Resumir em ~5 linhas** o que você vai fazer, dependências e impactos.
+
+**🔥 LIÇÃO CRÍTICA APRENDIDA (23/07/2025):**
+4. **SEMPRE consultar documentação oficial PRIMEIRO** quando encontrar problemas:
+   - Para WebRTC: Verificar documentação oficial WebRTC + Android
+   - Para Vuzix: Consultar docs oficiais ActionMenuActivity patterns
+   - Para OpenAI: Verificar documentação Realtime API + melhores práticas
+   - Para Android: Consultar oficial Android Developers sobre Network Security Policy, etc.
+   - **NUNCA assumir ou tentar "resolver na tentativa"** - isso desperdiça tempo e pode mascarar problemas reais
+   - Use o Task tool para research quando precisar de documentação específica
 
 Se não puder cumprir algum desses passos, **questione e aguarde instruções**.
 

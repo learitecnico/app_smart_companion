@@ -25,7 +25,7 @@ import java.nio.ByteBuffer
 class WebRTCService : Service() {
     
     companion object {
-        private const val TAG = "WebRTCService"
+        private const val TAG = "SmartCompanion" // Consistent logging
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "webrtc_service_channel"
     }
@@ -140,6 +140,9 @@ class WebRTCService : Service() {
                     hudOverlayManager?.updateConnectionStatus("Connected to Companion")
                     // Create peer connection when connected
                     createPeerConnection("companion-desktop")
+                    // Auto-start audio capture when connected
+                    startAudioCapture()
+                    Log.d(TAG, "Audio capture started automatically")
                 }
                 
                 override fun onDisconnected() {
@@ -176,11 +179,11 @@ class WebRTCService : Service() {
     private fun setupAudioCapture() {
         audioCapture = AudioCapture(this).apply {
             onAudioDataCaptured = { audioData ->
-                // Aqui os dados de áudio serão enviados via DataChannel ou WebRTC
-                // Para o Companion Desktop processar via OpenAI Realtime API
+                // Send audio data to Companion Desktop via DataChannel for OpenAI processing
                 Log.v(TAG, "Audio data captured: ${audioData.size} bytes")
                 
-                // TODO: Enviar para DataChannel quando conexão estiver estabelecida
+                // Send audio via DataChannel to Companion Desktop
+                sendAudioViaDataChannel(audioData)
             }
         }
     }
@@ -343,6 +346,12 @@ class WebRTCService : Service() {
                 Log.d(TAG, "Connection state changed: $state")
             }
         })
+        
+        // Create DataChannelManager after PeerConnection is created
+        currentPeerConnection?.let { pc ->
+            dataChannelManager = DataChannelManager(pc, serviceScope)
+            Log.d(TAG, "DataChannelManager created for peer: $peerId")
+        }
     }
     
     private fun handleDataChannelMessage(messageType: String, json: JSONObject) {
@@ -382,6 +391,26 @@ class WebRTCService : Service() {
             // Snapshot capturado, será enviado via DataChannel
             dataChannelManager?.sendSnapshot(imageData)
             Log.d(TAG, "Snapshot taken and sent: ${imageData.size} bytes")
+        }
+    }
+    
+    private fun sendAudioViaDataChannel(audioData: ByteArray) {
+        dataChannelManager?.let { dcManager ->
+            // Create audio message for Companion Desktop
+            val audioMessage = JSONObject().apply {
+                put("type", "audio_data")
+                put("format", "pcm16")
+                put("sampleRate", 16000)
+                put("channels", 1)
+                put("timestamp", System.currentTimeMillis())
+                // Convert audio bytes to base64 for JSON transmission
+                put("data", android.util.Base64.encodeToString(audioData, android.util.Base64.NO_WRAP))
+            }
+            
+            dcManager.sendMessage(audioMessage.toString())
+            Log.v(TAG, "Audio data sent via DataChannel: ${audioData.size} bytes")
+        } ?: run {
+            Log.w(TAG, "DataChannelManager not available, audio data dropped")
         }
     }
     

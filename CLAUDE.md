@@ -90,11 +90,17 @@ Seu objetivo: implementar o MVP descrito em PROJECT_BRIEF.md com a menor complex
 3. Resuma em 5 linhas: o que vamos fazer agora + dependências.
 
 ## ESTADO ATUAL DO PROJETO (2025-07-23)
-- **Fase:** Transição 1→2 (95% Fase 1 completa - aguardando build fix)
-- **Bloqueador:** JAVA_HOME pointing to non-existent Eclipse Adoptium directory
-- **Solução aplicada:** User atualizou JAVA_HOME para Android Studio JBR
-- **Próxima ação:** Restart terminal → test `gradlew build` → fix remaining deps
-- **Arquivos críticos:** MainActivity.kt, build.gradle.kts, WebRTC/AudioCapture integração
+- **Fase:** Fase 3 INICIADA ✅ (Conexão M400↔Desktop FUNCIONANDO!)
+- **Breakthrough:** Android 13+ Network Security Policy resolvido - WebRTC conectando
+- **Status:** `"webrtc":true, "signaling":1` - M400 conectado ao Companion Desktop
+- **Próxima ação:** Testes end-to-end de áudio e validação de latência <600ms
+- **Arquivos críticos:** SignalingClient.kt, WebRTCService.kt, network_security_config.xml
+
+## LIÇÕES CRÍTICAS APRENDIDAS
+- **SEMPRE consultar documentação oficial PRIMEIRO** ao encontrar problemas
+- Network Security Policy do Android 13+ bloqueia WebSocket CLEARTEXT por padrão
+- ActionMenuActivity requer `super.onCreateActionMenu()` chamada (documentação Vuzix)
+- Debug sistemático com logs padronizados é essencial para troubleshooting
 
 ## INTERACTION RULES
 - Faça PERGUNTAS CLARAS quando houver ambiguidade.

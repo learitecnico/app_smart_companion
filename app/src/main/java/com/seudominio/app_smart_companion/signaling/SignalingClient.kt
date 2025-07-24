@@ -18,7 +18,7 @@ class SignalingClient(
     private val scope: CoroutineScope
 ) {
     companion object {
-        private const val TAG = "SignalingClient"
+        private const val TAG = "SmartCompanion" // Consistent logging
     }
     
     interface SignalingListener {
@@ -47,16 +47,28 @@ class SignalingClient(
             return
         }
         
+        Log.i(TAG, "🔗 Attempting WebSocket connection to: $serverUrl")
+        
         try {
             val request = Request.Builder()
                 .url(serverUrl)
                 .build()
+                
+            Log.d(TAG, "📡 WebSocket request created, initiating connection...")
             
             webSocket = client.newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     Log.d(TAG, "WebSocket opened")
                     isConnected = true
                     reconnectAttempts = 0
+                    
+                    // Send join message immediately after connection
+                    val joinMessage = JSONObject().apply {
+                        put("type", "join")
+                        put("room", "companion-session")
+                    }
+                    sendMessage(joinMessage)
+                    Log.d(TAG, "Join message sent to signaling server")
                     
                     scope.launch(Dispatchers.Main) {
                         listener?.onConnected()
