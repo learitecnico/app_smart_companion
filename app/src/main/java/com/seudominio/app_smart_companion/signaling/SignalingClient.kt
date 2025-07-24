@@ -28,12 +28,15 @@ class SignalingClient(
         fun onAnswerReceived(answer: SessionDescription)
         fun onIceCandidateReceived(candidate: IceCandidate)
         fun onError(error: String)
+        // NEW: For HUD text messages from companion desktop
+        fun onTextMessageReceived(messageJson: String)
     }
     
     private var webSocket: WebSocket? = null
     private var listener: SignalingListener? = null
     private var isConnected = false
     private var reconnectAttempts = 0
+    private var shouldReconnect = true // Add flag to control reconnection
     private val client = OkHttpClient.Builder()
         .build()
     
@@ -120,10 +123,12 @@ class SignalingClient(
     }
     
     fun disconnect() {
+        shouldReconnect = false // Stop auto-reconnect
         webSocket?.close(1000, "Disconnecting")
         webSocket = null
         isConnected = false
         reconnectAttempts = AppConfig.MAX_RECONNECT_ATTEMPTS // Prevent auto-reconnect
+        Log.d(TAG, "SignalingClient disconnected - auto-reconnect disabled")
     }
     
     fun sendOffer(offer: SessionDescription) {
@@ -196,8 +201,16 @@ class SignalingClient(
                         listener?.onIceCandidateReceived(candidate)
                     }
                     
+                    // NEW: Handle text messages from companion (OpenAI responses)
+                    "model_text", "status_update", "clear_display", "connection_status" -> {
+                        Log.d(TAG, "📱 HUD message received from companion: $type")
+                        listener?.onTextMessageReceived(text)
+                    }
+                    
                     else -> {
                         Log.w(TAG, "Unknown message type: $type")
+                        // Forward unknown messages to HUD handler for potential processing
+                        listener?.onTextMessageReceived(text)
                     }
                 }
             }

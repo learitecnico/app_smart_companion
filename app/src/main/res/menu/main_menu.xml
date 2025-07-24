@@ -13,10 +13,21 @@
         android:title="Tirar Foto"
         android:icon="@android:drawable/ic_menu_camera" />
     
+    <!-- Conectar/Desconectar -->
+    <item
+        android:id="@+id/action_connect"
+        android:title="Conectar Companion"
+        android:icon="@android:drawable/ic_menu_share" />
+    
+    <item
+        android:id="@+id/action_disconnect"
+        android:title="Desconectar"
+        android:icon="@android:drawable/ic_menu_close_clear_cancel" />
+    
     <!-- Status da Conexão -->
     <item
         android:id="@+id/action_connection_status"
-        android:title="Status: Desconectado"
+        android:title="Status da Conexão"
         android:icon="@android:drawable/ic_menu_info_details" />
     
     <!-- Configurações -->

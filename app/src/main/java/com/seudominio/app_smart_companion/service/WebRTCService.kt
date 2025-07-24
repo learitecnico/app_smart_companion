@@ -35,7 +35,7 @@ class WebRTCService : Service() {
     private var audioCapture: AudioCapture? = null
     private var cameraCapture: CameraCapture? = null
     private var signalingClient: SignalingClient? = null
-    private var hudOverlayManager: HudOverlayManager? = null
+    // Note: Removed HudOverlayManager - using MainActivity's HudDisplayManager via broadcasts
     private var currentPeerConnection: PeerConnection? = null
     private var isWebRTCInitialized = false
     private var makingOffer = false  // Prevent concurrent offers per WebRTC best practices
@@ -50,6 +50,19 @@ class WebRTCService : Service() {
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Service started")
+        
+        // Handle intent actions from MainActivity
+        intent?.action?.let { action ->
+            when (action) {
+                "SEND_MESSAGE" -> {
+                    val message = intent.getStringExtra("message")
+                    if (message != null) {
+                        sendMessageToCompanion(message)
+                    }
+                }
+            }
+        }
+        
         return START_STICKY
     }
     
@@ -112,8 +125,9 @@ class WebRTCService : Service() {
                     WebRTCManager.initialize(this@WebRTCService)
                 }
                 
-                // Setup HUD overlay manager
-                hudOverlayManager = HudOverlayManager(this@WebRTCService)
+                // Note: HudOverlayManager is Compose-based and requires MainActivity's UI
+                // WebRTCService will use broadcast messages to MainActivity's HudDisplayManager instead
+                Log.i(TAG, "🔍 WebRTCService will use MainActivity's HudDisplayManager via broadcasts")
                 
                 // Setup audio capture
                 setupAudioCapture()
@@ -138,7 +152,7 @@ class WebRTCService : Service() {
             setListener(object : SignalingClient.SignalingListener {
                 override fun onConnected() {
                     Log.d(TAG, "Connected to signaling server")
-                    hudOverlayManager?.updateConnectionStatus("Connected to Companion")
+                    notifyMainActivityConnectionStatus(true)
                     
                     // Clean up any existing connection before creating new one
                     currentPeerConnection?.let { pc ->
@@ -176,7 +190,7 @@ class WebRTCService : Service() {
                 
                 override fun onDisconnected() {
                     Log.d(TAG, "Disconnected from signaling server")
-                    hudOverlayManager?.updateConnectionStatus("Disconnected")
+                    notifyMainActivityConnectionStatus(false)
                 }
                 
                 override fun onOfferReceived(offer: SessionDescription) {
@@ -196,7 +210,19 @@ class WebRTCService : Service() {
                 
                 override fun onError(error: String) {
                     Log.e(TAG, "Signaling error: $error")
-                    hudOverlayManager?.updateStatus("Error: $error")
+                    // Send error status to MainActivity
+                    sendStatusToMainActivity("Error: $error")
+                }
+                
+                override fun onTextMessageReceived(messageJson: String) {
+                    Log.i(TAG, "🔍 TEXT MESSAGE RECEIVED via WebSocket")
+                    Log.i(TAG, "🔍 Message content: $messageJson")
+                    
+                    // Forward to MainActivity's HudDisplayManager immediately (primary path)
+                    forwardMessageToMainActivity(messageJson)
+                    
+                    // Also process in service for confirmation callbacks (secondary)
+                    processTextMessageForConfirmation(messageJson)
                 }
             })
             
@@ -403,15 +429,15 @@ class WebRTCService : Service() {
                         Log.e(TAG, "  - Network/firewall blocking WebRTC")
                         Log.e(TAG, "  - Need TURN servers")
                         Log.e(TAG, "  - Localhost connectivity issues")
-                        hudOverlayManager?.updateStatus("ICE connection failed")
+                        sendStatusToMainActivity("ICE connection failed")
                     }
                     PeerConnection.IceConnectionState.CONNECTED -> {
                         Log.i(TAG, "🎉 ICE CONNECTION ESTABLISHED!")
-                        hudOverlayManager?.updateStatus("WebRTC connected")
+                        sendStatusToMainActivity("WebRTC connected")
                     }
                     PeerConnection.IceConnectionState.CHECKING -> {
                         Log.i(TAG, "🔍 ICE checking connectivity...")
-                        hudOverlayManager?.updateStatus("Checking connection")
+                        sendStatusToMainActivity("Checking connection")
                     }
                     else -> {
                         Log.d(TAG, "ICE state: $state")
@@ -516,8 +542,9 @@ class WebRTCService : Service() {
     }
     
     private fun handleDataChannelMessage(messageType: String, json: JSONObject) {
-        Log.i(TAG, "🎯 DATA CHANNEL MESSAGE RECEIVED", json)
-        Log.i(TAG, "🎯 Message type: $messageType")
+        Log.i(TAG, "🔍 DATA CHANNEL MESSAGE RECEIVED!")
+        Log.i(TAG, "🔍 Full JSON: $json")
+        Log.i(TAG, "🔍 Message type: '$messageType'")
         
         when (messageType) {
             "capture_snapshot" -> {
@@ -536,26 +563,22 @@ class WebRTCService : Service() {
                 Log.i(TAG, "🎯 Message ID: $messageId")
                 Log.i(TAG, "🎯 Requires confirmation: $requiresConfirmation")
                 Log.i(TAG, "🎯 Seq: $seq, Timestamp: $ts")
-                Log.i(TAG, "🎯 HudOverlayManager available: ${hudOverlayManager != null}")
                 
-                // Display text on HUD
-                hudOverlayManager?.let { hud ->
-                    Log.i(TAG, "🎯 Calling showText() on HudOverlayManager")
-                    hud.showText(text)
-                    hud.updateStatus("Response received at ${System.currentTimeMillis()}")
-                    Log.i(TAG, "🎯 HUD text updated successfully!")
-                    
-                    // VideoSDK pattern: Send confirmation back to Desktop
-                    if (requiresConfirmation && messageId.isNotEmpty()) {
-                        sendDisplayConfirmation(messageId, "displayed")
-                    }
-                } ?: run {
-                    Log.e(TAG, "🚨 HudOverlayManager is NULL - cannot display text!")
-                    
-                    // Send failure confirmation if HUD unavailable
-                    if (requiresConfirmation && messageId.isNotEmpty()) {
-                        sendDisplayConfirmation(messageId, "failed_no_hud")
-                    }
+                // Forward message to MainActivity's HudDisplayManager
+                Log.i(TAG, "🎯 Forwarding DataChannel message to MainActivity")
+                val messageToForward = JSONObject().apply {
+                    put("type", "model_text")
+                    put("text", text)
+                    put("message_id", messageId)
+                    put("requires_confirmation", requiresConfirmation)
+                    put("seq", seq)
+                    put("ts", ts)
+                }
+                forwardMessageToMainActivity(messageToForward.toString())
+                
+                // VideoSDK pattern: Send confirmation back to Desktop
+                if (requiresConfirmation && messageId.isNotEmpty()) {
+                    sendDisplayConfirmation(messageId, "displayed")
                 }
             }
             "model_audio" -> {
@@ -650,6 +673,169 @@ class WebRTCService : Service() {
         }
     }
     
+    /**
+     * Process text message for confirmation callbacks only (not for display)
+     */
+    private fun processTextMessageForConfirmation(messageJson: String) {
+        Log.i(TAG, "🔍 ENTERING processTextMessage()")
+        Log.i(TAG, "🔍 Raw message: $messageJson")
+        
+        try {
+            val json = JSONObject(messageJson)
+            val type = json.optString("type", "")
+            
+            Log.i(TAG, "🔍 Parsed JSON successfully")
+            Log.i(TAG, "🔍 Message type: '$type'")
+            Log.i(TAG, "🔍 All JSON keys: ${json.keys().asSequence().toList()}")
+            
+            when (type) {
+                "model_text" -> {
+                    val text = json.optString("text", "")
+                    val messageId = json.optString("message_id", "")
+                    
+                    Log.i(TAG, "🔍 MODEL_TEXT detected for confirmation!")
+                    Log.i(TAG, "🔍 Text content: '$text' (length: ${text.length})")
+                    Log.i(TAG, "🔍 Message ID: '$messageId'")
+                    
+                    // Send confirmation back to companion (text display handled by MainActivity)
+                    if (messageId.isNotEmpty()) {
+                        Log.i(TAG, "🔍 Sending text confirmation for message: $messageId")
+                        sendTextConfirmation(messageId, "displayed_via_mainactivity")
+                    }
+                }
+                
+                "status_update" -> {
+                    val status = json.optString("message", "")
+                    Log.i(TAG, "🔍 STATUS_UPDATE: $status")
+                    sendStatusToMainActivity(status)
+                }
+                
+                "clear_display" -> {
+                    Log.i(TAG, "🔍 CLEAR_DISPLAY")
+                    sendClearDisplayToMainActivity()
+                }
+                
+                else -> {
+                    Log.w(TAG, "🔍 Unknown text message type: '$type'")
+                    Log.w(TAG, "🔍 Full message for debugging: $messageJson")
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "🚨 EXCEPTION in processTextMessage()", e)
+            Log.e(TAG, "🚨 Exception message: ${e.message}")
+            Log.e(TAG, "🚨 Exception cause: ${e.cause}")
+        }
+        
+        Log.i(TAG, "🔍 EXITING processTextMessage()")
+    }
+    
+    /**
+     * Send text confirmation back to companion
+     */
+    private fun sendTextConfirmation(messageId: String, status: String) {
+        try {
+            val confirmation = JSONObject().apply {
+                put("type", "display_confirmed")
+                put("message_id", messageId)
+                put("status", status)
+                put("timestamp", System.currentTimeMillis())
+                put("device_id", "m400_service")
+            }
+            
+            signalingClient?.sendMessage(confirmation)
+            Log.d(TAG, "📱 Text confirmation sent: $status")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "📱 Failed to send text confirmation", e)
+        }
+    }
+    
+    /**
+     * Forward text message to MainActivity for HUD display
+     */
+    private fun forwardMessageToMainActivity(messageJson: String) {
+        try {
+            // Get MainActivity instance and forward message
+            // Using Intent-based approach to avoid direct activity references
+            val intent = Intent("com.seudominio.app_smart_companion.HUD_MESSAGE").apply {
+                setPackage(packageName)
+                putExtra("message", messageJson)
+            }
+            sendBroadcast(intent)
+            
+            Log.d(TAG, "📱 Message forwarded to MainActivity via broadcast")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error forwarding message to MainActivity", e)
+        }
+    }
+    
+    /**
+     * Send message back to companion desktop (called by MainActivity)
+     */
+    fun sendMessageToCompanion(messageJson: String) {
+        try {
+            val json = JSONObject(messageJson)
+            signalingClient?.sendMessage(json)
+            
+            Log.d(TAG, "📤 Message sent to companion: ${messageJson.substring(0, minOf(100, messageJson.length))}...")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending message to companion", e)
+        }
+    }
+    
+    /**
+     * Update connection status in MainActivity
+     */
+    private fun notifyMainActivityConnectionStatus(connected: Boolean) {
+        val intent = Intent("com.seudominio.app_smart_companion.CONNECTION_STATUS").apply {
+            setPackage(packageName)
+            putExtra("connected", connected)
+        }
+        sendBroadcast(intent)
+        
+        Log.d(TAG, "📱 Connection status broadcast sent: $connected")
+    }
+    
+    /**
+     * Send status message to MainActivity
+     */
+    private fun sendStatusToMainActivity(status: String) {
+        try {
+            val statusMessage = JSONObject().apply {
+                put("type", "status_update")
+                put("message", status)
+                put("timestamp", System.currentTimeMillis())
+            }
+            
+            forwardMessageToMainActivity(statusMessage.toString())
+            Log.d(TAG, "📱 Status sent to MainActivity: $status")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "📱 Error sending status to MainActivity", e)
+        }
+    }
+    
+    /**
+     * Send clear display command to MainActivity
+     */
+    private fun sendClearDisplayToMainActivity() {
+        try {
+            val clearMessage = JSONObject().apply {
+                put("type", "clear_display")
+                put("timestamp", System.currentTimeMillis())
+            }
+            
+            forwardMessageToMainActivity(clearMessage.toString())
+            Log.d(TAG, "📱 Clear display sent to MainActivity")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "📱 Error sending clear display to MainActivity", e)
+        }
+    }
+    
     private fun cleanup() {
         Log.d(TAG, "Cleaning up resources")
         
@@ -658,7 +844,7 @@ class WebRTCService : Service() {
         dataChannelManager?.dispose()
         signalingClient?.disconnect()
         currentPeerConnection?.close()
-        hudOverlayManager?.hide()
+        // Note: HUD display cleanup handled by MainActivity
         
         WebRTCManager.dispose()
         serviceScope.cancel()

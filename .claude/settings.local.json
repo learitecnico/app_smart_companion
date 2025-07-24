@@ -44,7 +44,11 @@
       "Bash(git push:*)",
       "Bash(mkdir:*)",
       "WebFetch(domain:www.videosdk.live)",
-      "WebFetch(domain:localhost)"
+      "WebFetch(domain:localhost)",
+      "Bash(dir:*)",
+      "Bash(.gradlew-fix.bat assembleDebug)",
+      "Bash(call gradlew-fix.bat assembleDebug)",
+      "Bash(set JAVA_HOME=\"C:\\Program Files\\Android\\Android Studio\\jbr\")"
     ],
     "deny": []
   }

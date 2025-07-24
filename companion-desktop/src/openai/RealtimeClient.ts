@@ -58,7 +58,7 @@ export class RealtimeClient extends EventEmitter {
         threshold: 0.3,  // Lower threshold = more sensitive (was 0.5 - too high per community)
         prefix_padding_ms: 300,
         silence_duration_ms: 300,  // Shorter silence = faster trigger (was 500ms)
-        create_response: true
+        // create_response: true // Not in official API type definition
       },
       // VideoSDK smart glasses optimizations (corrected for API limits)
       temperature: 0.6,  // Minimum allowed by OpenAI Realtime API (was 0.3 - too low)

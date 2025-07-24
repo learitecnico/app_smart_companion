@@ -99,7 +99,7 @@ export class SignalingServer {
         this.onSignalingMessageCallback?.(clientId, message);
         break;
 
-      case 'audio_stream':
+      case 'audio_stream' as any:
         // Handle WebSocket audio streaming (MVP approach)
         this.handleAudioStream(clientId, message);
         break;

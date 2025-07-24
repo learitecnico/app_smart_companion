@@ -7,4 +7,12 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    
+    <!-- HUD-optimized colors for outdoor visibility -->
+    <color name="hud_primary_text">#FFFFFF</color>
+    <color name="hud_secondary_text">#CCCCCC</color>
+    <color name="hud_background_transparent">#80000000</color>
+    <color name="hud_accent">#00FF00</color>
+    <color name="hud_warning">#FFAA00</color>
+    <color name="hud_error">#FF0000</color>
 </resources>

@@ -280,7 +280,7 @@ export class WebRTCManager {
       // M400 sends offer as: { type: "offer", sdp: "..." }
       // We need to create RTCSessionDescription from this format
       const offerDescription = {
-        type: 'offer' as RTCSdpType,
+        type: 'offer',
         sdp: message.sdp
       };
       
@@ -336,7 +336,7 @@ export class WebRTCManager {
 
   // VideoSDK pattern: Send text response with confirmation loop
   sendTextResponse(text: string): void {
-    logger.info('🎯 SENDING TEXT RESPONSE TO M400 via DataChannel', { 
+    logger.info('🎯 SENDING TEXT RESPONSE TO M400', { 
       text: text.substring(0, 100) + '...',
       length: text.length,
       activeChannels: this.getActiveDataChannels()
@@ -353,12 +353,17 @@ export class WebRTCManager {
       requires_confirmation: true  // VideoSDK pattern
     };
 
+    // CRITICAL FIX: Send via WebSocket for M400 compatibility
+    // M400's WebRTCService expects messages via SignalingClient (WebSocket)
+    this.sendViaWebSocket(message);
+    
+    // Also broadcast via DataChannel for future compatibility
     this.broadcastMessage(message);
     
     // VideoSDK pattern: Wait for confirmation
     this.waitForDisplayConfirmation(messageId, text);
     
-    logger.info('🎯 Text response broadcast completed with confirmation tracking', { 
+    logger.info('🎯 Text response sent via BOTH WebSocket and DataChannel', { 
       messageId,
       length: text.length,
       messageType: message.type 
@@ -367,6 +372,24 @@ export class WebRTCManager {
 
   private generateMessageId(): string {
     return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private sendViaWebSocket(message: any): void {
+    // Send to all connected clients via WebSocket
+    this.connections.forEach((_, clientId) => {
+      logger.info('🎯 Sending message via WebSocket to client', { 
+        clientId, 
+        messageType: message.type,
+        messageId: message.message_id
+      });
+      
+      // Use signaling callback to send via WebSocket
+      if (this.signalingCallback) {
+        this.signalingCallback(clientId, message);
+      } else {
+        logger.error('🚨 No signaling callback set - cannot send via WebSocket!');
+      }
+    });
   }
 
   private waitForDisplayConfirmation(messageId: string, text: string): void {

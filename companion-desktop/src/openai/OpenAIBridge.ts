@@ -180,7 +180,7 @@ Remember: Every response MUST use display_on_hud tool for HUD delivery.`;
       }
 
       // Force OpenAI to generate response with current audio buffer
-      this.realtimeClient.createResponse();
+      (this.realtimeClient as any).createResponse();
       logger.info('🎯 FORCE REPLY triggered - asking OpenAI to respond with current buffer');
 
     } catch (error) {

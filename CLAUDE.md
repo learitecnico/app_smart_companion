@@ -10,16 +10,16 @@ This is an Android application called "Smart Companion" built with Kotlin and Je
 
 ### Build Commands
 ```bash
-# Build the project
+# WORKING BUILD COMMAND (tested 2025-07-24)
+JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" && cd "C:/Users/Everton/AndroidStudioProjects/app_smart_companion" && ./gradlew assembleDebug
+
+# Alternative using gradlew-fix.bat (if available)
+gradlew-fix.bat assembleDebug
+
+# Standard commands (may need JAVA_HOME set)
 ./gradlew build
-
-# Clean build artifacts
 ./gradlew clean
-
-# Build debug APK
 ./gradlew assembleDebug
-
-# Build release APK
 ./gradlew assembleRelease
 ```
 
