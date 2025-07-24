@@ -215,10 +215,23 @@ export class RealtimeClient extends EventEmitter {
         break;
 
       case 'response.content_part.done':
+        logger.info('🎯 RESPONSE CONTENT PART DONE - CRITICAL EVENT!', { 
+          partType: event.part?.type,
+          textContent: event.part?.text?.substring(0, 100) + '...' || 'No text',
+          fullEvent: JSON.stringify(event).substring(0, 300) + '...'
+        });
+        
         if (event.part?.type === 'text') {
+          logger.info('🎯 TEXT PART detected - forwarding to text_complete');
           this.emit('text_complete', event.part.text);
         } else if (event.part?.type === 'audio') {
+          logger.info('🎯 AUDIO PART detected - forwarding to audio_complete');
           this.emit('audio_complete', event.part);
+        } else {
+          logger.warn('🚨 UNKNOWN PART TYPE in response.content_part.done', { 
+            partType: event.part?.type,
+            partKeys: Object.keys(event.part || {})
+          });
         }
         break;
 

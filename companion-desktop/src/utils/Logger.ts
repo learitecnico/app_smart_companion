@@ -19,34 +19,55 @@ export class Logger {
       fs.mkdirSync(logsDir, { recursive: true });
     }
 
-    const logLevel = process.env['LOG_LEVEL'] ?? 'info';
-    const logFile = process.env['LOG_FILE'] ?? './logs/companion.log';
+    const logLevel = process.env['LOG_LEVEL'] ?? 'debug';  // Set to debug for testing
+    
+    // Create timestamped log file for this session
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const sessionLogFile = `./logs/companion-session-${timestamp}.log`;
+    const errorLogFile = `./logs/error-session-${timestamp}.log`;
+    
+    // Keep fallback to original log file if env var is set
+    const logFile = process.env['LOG_FILE'] ?? sessionLogFile;
 
-    return winston.createLogger({
+    const logger = winston.createLogger({
       level: logLevel,
       format: winston.format.combine(
         winston.format.timestamp(),
         winston.format.errors({ stack: true }),
         winston.format.json()
       ),
-      defaultMeta: { service: 'smart-companion-desktop' },
+      defaultMeta: { 
+        service: 'smart-companion-desktop',
+        sessionStart: timestamp
+      },
       transports: [
-        // Write all logs to file
+        // Write all logs to timestamped session file
         new winston.transports.File({ 
           filename: logFile,
-          maxsize: 5242880, // 5MB
-          maxFiles: 5
+          maxsize: 10485760, // 10MB for testing sessions
+          maxFiles: 10
         }),
         
-        // Write errors to separate file
+        // Write errors to separate timestamped file
         new winston.transports.File({ 
-          filename: './logs/error.log', 
+          filename: errorLogFile, 
           level: 'error',
           maxsize: 5242880,
-          maxFiles: 3
+          maxFiles: 5
         })
       ]
     });
+
+    // Log session start info
+    logger.info('🚀 NEW COMPANION SESSION STARTED', {
+      sessionId: timestamp,
+      logFile: logFile,
+      errorFile: errorLogFile,
+      logLevel: logLevel,
+      debugMode: logLevel === 'debug'
+    });
+
+    return logger;
   }
 
   static addConsoleTransport(): void {
