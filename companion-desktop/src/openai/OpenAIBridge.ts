@@ -71,15 +71,16 @@ Remember: Every response MUST use display_on_hud tool for HUD delivery.`;
     });
 
     this.realtimeClient.on('text_complete', (text: string) => {
-      logger.info('🎯 TEXT_COMPLETE received from OpenAI - sending to WebRTC', { 
+      logger.info('🎯 TEXT_COMPLETE received from OpenAI - CRITICAL PATH to WebRTC', { 
         length: text.length,
         preview: text.substring(0, 100) + '...',
-        callbackSet: !!this.onTextResponseCallback
+        callbackSet: !!this.onTextResponseCallback,
+        source: 'direct_text_complete'  // Track this vs tool-based
       });
       
       if (this.onTextResponseCallback) {
         this.onTextResponseCallback(text);
-        logger.info('🎯 Text response forwarded to WebRTC callback');
+        logger.info('🎯 Direct text response forwarded to WebRTC callback (ORIGINAL PIPELINE)');
       } else {
         logger.error('🚨 NO TEXT RESPONSE CALLBACK SET! Text cannot be sent to M400');
       }
@@ -125,15 +126,16 @@ Remember: Every response MUST use display_on_hud tool for HUD delivery.`;
 
     // VideoSDK pattern: Handle display_on_hud tool calls
     this.realtimeClient.on('hud_display_request', (data: { text: string; priority: string; call_id: string }) => {
-      logger.info('🎯 HUD_DISPLAY_REQUEST received from OpenAI tool', { 
+      logger.info('🎯 HUD_DISPLAY_REQUEST received from OpenAI tool - ALTERNATIVE PATH', { 
         text: data.text.substring(0, 50) + '...',
         priority: data.priority,
-        call_id: data.call_id
+        call_id: data.call_id,
+        source: 'tool_based_display'  // Track this vs direct text_complete
       });
       
       if (this.onTextResponseCallback) {
         this.onTextResponseCallback(data.text);
-        logger.info('🎯 Tool-triggered text forwarded to WebRTC successfully');
+        logger.info('🎯 Tool-triggered text forwarded to WebRTC (VIDEOSDK ENHANCEMENT PATH)');
       } else {
         logger.error('🚨 NO TEXT RESPONSE CALLBACK for tool-triggered display!');
       }

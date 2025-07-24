@@ -83,7 +83,7 @@ export class RealtimeClient extends EventEmitter {
           }
         }
       ],
-      tool_choice: 'auto'  // Allow OpenAI to decide when to use tools
+      tool_choice: 'auto'  // CRITICAL: 'auto' preserves existing text_complete flow, 'required' would break it
     };
   }
 
@@ -204,9 +204,6 @@ export class RealtimeClient extends EventEmitter {
         logger.debug('Response created', { response_id: event.response?.id });
         break;
 
-      case 'response.output_item.added':
-        logger.debug('Response output item added', { item_id: event.item?.id });
-        break;
 
       case 'response.content_part.added':
         if (event.part?.type === 'text') {
@@ -229,21 +226,27 @@ export class RealtimeClient extends EventEmitter {
         this.emit('response_complete', event.response);
         break;
 
-      // VideoSDK pattern: Handle tool calls
-      case 'response.function_call_arguments.delta':
-        logger.debug('Function call arguments delta', { 
-          call_id: event.call_id,
-          name: event.name 
-        });
+      // VideoSDK pattern: Handle tool calls (corrected events)
+      case 'response.output_item.added':
+        if (event.item?.type === 'function_call') {
+          logger.debug('Function call started', { 
+            call_id: event.item.call_id,
+            name: event.item.name 
+          });
+        }
+        logger.debug('Response output item added', { item_id: event.item?.id });
         break;
 
-      case 'response.function_call_arguments.done':
-        logger.info('🎯 FUNCTION CALL completed', { 
-          call_id: event.call_id,
-          name: event.name,
-          arguments: event.arguments 
-        });
-        this.handleFunctionCall(event);
+      case 'response.output_item.done':
+        if (event.item?.type === 'function_call') {
+          logger.info('🎯 FUNCTION CALL completed', { 
+            call_id: event.item.call_id,
+            name: event.item.name,
+            arguments: event.item.arguments,
+            status: event.item.status
+          });
+          this.handleFunctionCall(event.item);
+        }
         break;
 
       case 'input_audio_buffer.speech_started':
@@ -297,8 +300,8 @@ export class RealtimeClient extends EventEmitter {
   }
 
   // VideoSDK pattern: Handle function calls (display_on_hud tool)
-  private handleFunctionCall(event: RealtimeEvent): void {
-    const { call_id, name, arguments: args } = event;
+  private handleFunctionCall(item: any): void {
+    const { call_id, name, arguments: args } = item;
     
     if (name === 'display_on_hud') {
       try {
@@ -337,7 +340,8 @@ export class RealtimeClient extends EventEmitter {
   }
 
   private sendFunctionCallResult(call_id: string, result: any): void {
-    const event: RealtimeEvent = {
+    // Send function call result back to OpenAI
+    const functionResultEvent: RealtimeEvent = {
       event_id: this.generateEventId(),
       type: 'conversation.item.create',
       item: {
@@ -347,10 +351,17 @@ export class RealtimeClient extends EventEmitter {
       }
     };
     
-    this.sendEvent(event);
-    this.createResponse(); // Generate follow-up response
+    this.sendEvent(functionResultEvent);
     
-    logger.debug('Function call result sent', { call_id, result });
+    // Create a new response to continue the conversation
+    const responseEvent: RealtimeEvent = {
+      event_id: this.generateEventId(),
+      type: 'response.create'
+    };
+    
+    this.sendEvent(responseEvent);
+    
+    logger.debug('Function call result sent and response requested', { call_id, result });
   }
 
   sendAudio(audioBuffer: Buffer): void {
