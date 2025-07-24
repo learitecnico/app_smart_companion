@@ -43,7 +43,7 @@ export class RealtimeClient extends EventEmitter {
     
     // VideoSDK pattern: Smart glasses optimized session config
     this.sessionConfig = {
-      modalities: ['text', 'audio'],
+      modalities: ['text', 'audio'],  // Both modalities for flexibility
       instructions: `You are a helpful AI assistant for smart glasses. 
         Provide concise, clear responses suitable for display on a heads-up display. 
         Keep responses brief and actionable. Focus on practical information.`,
@@ -287,7 +287,16 @@ export class RealtimeClient extends EventEmitter {
         break;
 
       case 'response.audio_transcript.done':
-        logger.debug('Audio transcript completed');
+        logger.info('🎯 AUDIO TRANSCRIPT COMPLETED - contains TEXT from audio response!', { 
+          transcript: event.transcript?.substring(0, 100) + '...' || 'No transcript'
+        });
+        
+        // This contains the TEXT version of the audio response!
+        if (event.transcript) {
+          this.emit('text_complete', event.transcript);  // Emit as text_complete for compatibility
+          logger.info('🎯 Audio transcript forwarded as text_complete for HUD display');
+        }
+        
         this.emit('audio_transcript_complete', event.transcript);
         break;
 
