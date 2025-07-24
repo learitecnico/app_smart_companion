@@ -84,10 +84,11 @@ Seu objetivo: implementar o MVP descrito em PROJECT_BRIEF.md com a menor complex
 
 ## ALWAYS DO FIRST
 1. Leia/atualize: PROJECT_BRIEF.md, RULES_FOR_AI.md, BACKLOG.md (se existir).
-2. Rode:
+2. **CONSULTE DOCUMENTAÇÃO ESSENCIAL**: `docs/references/` - VideoSDK OpenAI Realtime API e Agent Framework patterns
+3. Rode:
    - `git status` / `git diff` / `git log -n 5` para entender o estado atual. 
    - Liste arquivos-chave do módulo que vamos alterar.
-3. Resuma em 5 linhas: o que vamos fazer agora + dependências.
+4. Resuma em 5 linhas: o que vamos fazer agora + dependências.
 
 ## ESTADO ATUAL DO PROJETO (2025-07-23)
 - **Fase:** Fase 3 INICIADA ✅ (Conexão M400↔Desktop FUNCIONANDO!)
@@ -101,6 +102,12 @@ Seu objetivo: implementar o MVP descrito em PROJECT_BRIEF.md com a menor complex
 - Network Security Policy do Android 13+ bloqueia WebSocket CLEARTEXT por padrão
 - ActionMenuActivity requer `super.onCreateActionMenu()` chamada (documentação Vuzix)
 - Debug sistemático com logs padronizados é essencial para troubleshooting
+
+## DOCUMENTAÇÃO ESSENCIAL DE REFERÊNCIA
+- **`docs/references/VideoSDK_OpenAI_Realtime_API.md`** - Padrões oficiais OpenAI Realtime API
+- **`docs/references/VideoSDK_Agents_Framework.md`** - Arquiteturas avançadas de AI agents
+- **`docs/references/README.md`** - Índice e guias de uso das referências
+- **REGRA:** Sempre consultar estas referências antes de implementar funcionalidades de áudio, IA ou WebRTC
 
 ## INTERACTION RULES
 - Faça PERGUNTAS CLARAS quando houver ambiguidade.
