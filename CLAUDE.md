@@ -90,12 +90,12 @@ Seu objetivo: implementar o MVP descrito em PROJECT_BRIEF.md com a menor complex
    - Liste arquivos-chave do módulo que vamos alterar.
 4. Resuma em 5 linhas: o que vamos fazer agora + dependências.
 
-## ESTADO ATUAL DO PROJETO (2025-07-24)
-- **Fase:** Debug audio_transcript.done ✅ (Pipeline M400↔Desktop↔OpenAI FUNCIONANDO!)
-- **Breakthrough:** WebSocket audio streaming completo, OpenAI respondendo
-- **Status:** `response.audio_transcript.done` chegando mas `event.transcript` undefined
-- **Problema atual:** Texto não sendo extraído do evento OpenAI (debug implementado)
-- **Arquivos críticos:** RealtimeClient.ts, OpenAIBridge.ts (debug enhancements)
+## ESTADO ATUAL DO PROJETO (2025-07-24 14:45)
+- **Fase:** MVP 100% COMPLETO! ✅ HUD FUNCIONANDO!
+- **Breakthrough:** Pipeline completo M400↔Desktop↔OpenAI↔HUD validado e testado
+- **Status:** Texto do OpenAI exibindo perfeitamente no HUD do M400
+- **Commit atual:** f014e0a - "MVP COMPLETO! HUD display funcionando"
+- **Próxima fase:** Melhorar respostas do assistente + personalização OpenAI Realtime API
 
 ## 🚨 REGRA CRÍTICA - COMPANION DESKTOP
 **⚠️ NUNCA iniciar companion desktop via terminal do Claude Code!**
