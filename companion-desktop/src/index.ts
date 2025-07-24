@@ -211,6 +211,17 @@ class CompanionApp {
         res.status(500).json({ error: 'Failed to read logs' });
       }
     });
+
+    // Force reply endpoint (VideoSDK community recommendation for VAD issues)
+    this.app.post('/force-reply', async (req, res) => {
+      try {
+        await this.openAIBridge.forceReply();
+        res.json({ success: true, message: 'Force reply triggered' });
+      } catch (error) {
+        logger.error('Failed to force reply via API', { error });
+        res.status(500).json({ error: 'Failed to force reply' });
+      }
+    });
   }
 
   private connectComponents(): void {

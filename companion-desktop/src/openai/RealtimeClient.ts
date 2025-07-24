@@ -55,9 +55,10 @@ export class RealtimeClient extends EventEmitter {
       },
       turn_detection: {
         type: 'server_vad',
-        threshold: 0.5,
+        threshold: 0.3,  // Lower threshold = more sensitive (was 0.5 - too high per community)
         prefix_padding_ms: 300,
-        silence_duration_ms: 500  // OpenAI recommended default (was 200ms - too aggressive)
+        silence_duration_ms: 300,  // Shorter silence = faster trigger (was 500ms)
+        create_response: true
       },
       // VideoSDK smart glasses optimizations (corrected for API limits)
       temperature: 0.6,  // Minimum allowed by OpenAI Realtime API (was 0.3 - too low)

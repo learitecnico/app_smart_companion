@@ -160,14 +160,29 @@ Remember: Every response MUST use display_on_hud tool for HUD delivery.`;
       }
 
       // Send audio data to realtime API
-      // NOTE: With server_vad enabled, OpenAI automatically manages buffer commits
-      // based on voice activity detection. We should NOT call commitAudio() manually.
       this.realtimeClient.sendAudio(audioData);
 
       logger.debug('Audio data sent to OpenAI Realtime API', { size: audioData.length });
 
     } catch (error) {
       logger.error('Failed to send audio to OpenAI', { error });
+    }
+  }
+
+  // VideoSDK pattern: Force reply when VAD fails (community recommendation)
+  async forceReply(): Promise<void> {
+    try {
+      if (!this.isConnectedFlag) {
+        logger.warn('Cannot force reply: not connected to OpenAI');
+        return;
+      }
+
+      // Force OpenAI to generate response with current audio buffer
+      this.realtimeClient.createResponse();
+      logger.info('🎯 FORCE REPLY triggered - asking OpenAI to respond with current buffer');
+
+    } catch (error) {
+      logger.error('Failed to force reply', { error });
     }
   }
 
