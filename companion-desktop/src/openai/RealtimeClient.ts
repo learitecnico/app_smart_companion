@@ -59,8 +59,8 @@ export class RealtimeClient extends EventEmitter {
         prefix_padding_ms: 300,
         silence_duration_ms: 500  // OpenAI recommended default (was 200ms - too aggressive)
       },
-      // VideoSDK smart glasses optimizations
-      temperature: 0.3,  // More deterministic for HUD display
+      // VideoSDK smart glasses optimizations (corrected for API limits)
+      temperature: 0.6,  // Minimum allowed by OpenAI Realtime API (was 0.3 - too low)
       tools: [
         {
           type: 'function',
