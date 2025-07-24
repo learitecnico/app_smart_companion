@@ -7,6 +7,7 @@ import { SignalingServer } from './signaling/SignalingServer';
 import { WebRTCManager } from './webrtc/WebRTCManager';
 import { OpenAIBridge } from './openai/OpenAIBridge';
 import { Logger } from './utils/Logger';
+import { StunTester } from './utils/StunTester';
 
 const logger = Logger.getInstance();
 
@@ -57,6 +58,44 @@ class CompanionApp {
         signaling: this.signalingServer.getClientCount(),
         timestamp: new Date().toISOString()
       });
+    });
+
+    this.app.get('/diagnostic/stun', async (req, res) => {
+      try {
+        logger.info('🧪 Running STUN diagnostic test...');
+        
+        const [stunConnectivity, publicIP] = await Promise.all([
+          StunTester.testStunConnectivity(),
+          StunTester.getPublicIP()
+        ]);
+
+        const result = {
+          stunConnectivity,
+          publicIP,
+          timestamp: new Date().toISOString(),
+          recommendations: []
+        };
+
+        if (!stunConnectivity) {
+          result.recommendations.push('STUN servers may be unreachable - check firewall/network settings');
+          result.recommendations.push('Consider adding TURN servers for better connectivity');
+        }
+
+        if (!publicIP) {
+          result.recommendations.push('Could not detect public IP - NAT traversal may fail');
+          result.recommendations.push('Try testing on real IP address instead of localhost');
+        }
+
+        logger.info('🧪 STUN diagnostic completed', { stunConnectivity, publicIP });
+        res.json(result);
+        
+      } catch (error) {
+        logger.error('STUN diagnostic failed:', error);
+        res.status(500).json({ 
+          error: 'Diagnostic failed', 
+          message: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
     });
 
     this.app.post('/prompt', (req, res) => {
@@ -130,13 +169,21 @@ class CompanionApp {
   }
 
   private connectComponents(): void {
-    // Connect WebRTC to OpenAI
+    // Connect WebRTC to OpenAI (fallback method)
     this.webrtcManager.onAudioReceived((audioData: Buffer) => {
       void this.openAIBridge.sendAudio(audioData);
     });
 
     this.webrtcManager.onSnapshotReceived((imageData: Buffer) => {
       void this.openAIBridge.sendImage(imageData);
+    });
+
+    // 🎵 Connect WebSocket Audio Streaming to OpenAI (MVP approach)
+    this.signalingServer.onAudioStream((audioData: Buffer) => {
+      logger.info('🎵 WebSocket audio received, forwarding to OpenAI Realtime API', { 
+        size: audioData.length 
+      });
+      void this.openAIBridge.sendAudio(audioData);
     });
 
     // Connect OpenAI responses back to WebRTC

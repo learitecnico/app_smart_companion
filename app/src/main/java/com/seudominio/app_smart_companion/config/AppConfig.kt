@@ -3,7 +3,7 @@ package com.seudominio.app_smart_companion.config
 object AppConfig {
     // Companion Desktop server configuration
     // TODO: In production, this should be configurable via settings
-    const val COMPANION_HOST = "127.0.0.1" // Using USB forwarding
+    const val COMPANION_HOST = "192.168.1.7" // Desktop IP for proper WebRTC connectivity
     const val COMPANION_PORT = 3001
     
     val SIGNALING_URL: String

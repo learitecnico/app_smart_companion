@@ -119,10 +119,9 @@ You can help with:
       }
 
       // Send audio data to realtime API
+      // NOTE: With server_vad enabled, OpenAI automatically manages buffer commits
+      // based on voice activity detection. We should NOT call commitAudio() manually.
       this.realtimeClient.sendAudio(audioData);
-      
-      // Commit immediately for real-time processing
-      this.realtimeClient.commitAudio();
 
       logger.debug('Audio data sent to OpenAI Realtime API', { size: audioData.length });
 

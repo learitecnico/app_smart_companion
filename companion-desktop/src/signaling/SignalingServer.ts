@@ -14,6 +14,7 @@ export class SignalingServer {
   private clients = new Map<string, WebSocket>();
   private onClientConnectedCallback?: (clientId: string) => void;
   private onSignalingMessageCallback?: (clientId: string, message: any) => void;
+  private onAudioStreamCallback?: (audioData: Buffer) => void;
 
   constructor(server: Server) {
     this.wss = new WebSocketServer({
@@ -98,6 +99,11 @@ export class SignalingServer {
         this.onSignalingMessageCallback?.(clientId, message);
         break;
 
+      case 'audio_stream':
+        // Handle WebSocket audio streaming (MVP approach)
+        this.handleAudioStream(clientId, message);
+        break;
+
       case 'leave':
         logger.info('Client left room', { clientId });
         break;
@@ -133,6 +139,39 @@ export class SignalingServer {
     });
   }
 
+  private handleAudioStream(clientId: string, message: any): void {
+    try {
+      logger.debug('🎵 Audio stream received via WebSocket', { 
+        clientId, 
+        size: message.data?.length || 0,
+        format: message.format,
+        sampleRate: message.sampleRate,
+        timestamp: message.timestamp
+      });
+
+      if (!message.data) {
+        logger.warn('Audio stream message missing data field', { clientId });
+        return;
+      }
+
+      // Decode base64 audio data from M400
+      const audioBuffer = Buffer.from(message.data, 'base64');
+      
+      logger.debug('🎵 Audio data decoded', { 
+        clientId, 
+        originalSize: audioBuffer.length,
+        format: message.format,
+        sampleRate: message.sampleRate 
+      });
+
+      // Forward to OpenAI Realtime API via callback
+      this.onAudioStreamCallback?.(audioBuffer);
+      
+    } catch (error) {
+      logger.error('Failed to process audio stream', { clientId, error });
+    }
+  }
+
   broadcast(message: any, excludeClientId?: string): void {
     const messageStr = JSON.stringify(message);
     let sentCount = 0;
@@ -157,6 +196,10 @@ export class SignalingServer {
 
   onSignalingMessage(callback: (clientId: string, message: any) => void): void {
     this.onSignalingMessageCallback = callback;
+  }
+
+  onAudioStream(callback: (audioData: Buffer) => void): void {
+    this.onAudioStreamCallback = callback;
   }
 
   getClientCount(): number {

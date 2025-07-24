@@ -38,6 +38,7 @@ class WebRTCService : Service() {
     private var hudOverlayManager: HudOverlayManager? = null
     private var currentPeerConnection: PeerConnection? = null
     private var isWebRTCInitialized = false
+    private var makingOffer = false  // Prevent concurrent offers per WebRTC best practices
     
     override fun onCreate() {
         super.onCreate()
@@ -138,8 +139,36 @@ class WebRTCService : Service() {
                 override fun onConnected() {
                     Log.d(TAG, "Connected to signaling server")
                     hudOverlayManager?.updateConnectionStatus("Connected to Companion")
+                    
+                    // Clean up any existing connection before creating new one
+                    currentPeerConnection?.let { pc ->
+                        Log.i(TAG, "🧹 Cleaning up existing PeerConnection before creating new one")
+                        pc.close()
+                        currentPeerConnection = null
+                        dataChannelManager?.dispose()
+                        dataChannelManager = null
+                    }
+                    
                     // Create peer connection when connected
+                    Log.i(TAG, "🎯 Creating new PeerConnection for companion-desktop")
                     createPeerConnection("companion-desktop")
+                    
+                    // Force offer creation after a short delay to ensure PeerConnection is ready
+                    serviceScope.launch {
+                        delay(100) // Short delay to ensure everything is set up
+                        currentPeerConnection?.let { pc ->
+                            Log.i(TAG, "🎯 FORCING offer creation after signaling connection")
+                            try {
+                                makingOffer = true
+                                createOfferWithPeerConnection(pc)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "🎯 FAILED to force offer creation", e)
+                            } finally {
+                                makingOffer = false
+                            }
+                        } ?: Log.e(TAG, "🎯 Cannot force offer - no currentPeerConnection!")
+                    }
+                    
                     // Auto-start audio capture when connected
                     startAudioCapture()
                     Log.d(TAG, "Audio capture started automatically")
@@ -232,6 +261,41 @@ class WebRTCService : Service() {
         }, answer)
     }
     
+    private fun createOffer() {
+        Log.d(TAG, "createOffer() called - starting offer creation")
+        
+        val constraints = MediaConstraints().apply {
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
+        }
+        
+        Log.d(TAG, "PeerConnection available: ${currentPeerConnection != null}")
+        currentPeerConnection?.createOffer(object : SdpObserver {
+            override fun onCreateSuccess(desc: SessionDescription?) {
+                desc?.let { offer ->
+                    currentPeerConnection?.setLocalDescription(object : SdpObserver {
+                        override fun onCreateSuccess(desc: SessionDescription?) {}
+                        override fun onSetSuccess() {
+                            Log.d(TAG, "Local offer set, sending to companion")
+                            signalingClient?.sendOffer(offer)
+                        }
+                        override fun onCreateFailure(error: String?) {
+                            Log.e(TAG, "Failed to create local desc: $error")
+                        }
+                        override fun onSetFailure(error: String?) {
+                            Log.e(TAG, "Failed to set local desc: $error")
+                        }
+                    }, offer)
+                }
+            }
+            override fun onSetSuccess() {}
+            override fun onCreateFailure(error: String?) {
+                Log.e(TAG, "Failed to create offer: $error")
+            }
+            override fun onSetFailure(error: String?) {}
+        }, constraints)
+    }
+    
     private fun createAnswer() {
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
@@ -264,13 +328,58 @@ class WebRTCService : Service() {
         }, constraints)
     }
     
+    private fun createOfferWithPeerConnection(peerConnection: PeerConnection) {
+        Log.i(TAG, "🎯 createOfferWithPeerConnection() CALLED - starting offer creation")
+        
+        val constraints = MediaConstraints().apply {
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
+        }
+        
+        Log.d(TAG, "🎯 About to call peerConnection.createOffer() with constraints")
+        peerConnection.createOffer(object : SdpObserver {
+            override fun onCreateSuccess(desc: SessionDescription?) {
+                Log.i(TAG, "🎯 OFFER CREATED SUCCESSFULLY!")
+                desc?.let { offer ->
+                    Log.d(TAG, "🎯 Setting local description for offer")
+                    peerConnection.setLocalDescription(object : SdpObserver {
+                        override fun onCreateSuccess(desc: SessionDescription?) {}
+                        override fun onSetSuccess() {
+                            Log.i(TAG, "🎯 LOCAL OFFER SET - sending to companion via SignalingClient")
+                            Log.d(TAG, "🎯 SignalingClient available: ${signalingClient != null}")
+                            signalingClient?.sendOffer(offer)
+                            Log.i(TAG, "🎯 OFFER SENT TO COMPANION!")
+                        }
+                        override fun onCreateFailure(error: String?) {
+                            Log.e(TAG, "🎯 FAILED to create local desc: $error")
+                        }
+                        override fun onSetFailure(error: String?) {
+                            Log.e(TAG, "🎯 FAILED to set local desc: $error")
+                        }
+                    }, offer)
+                } ?: Log.e(TAG, "🎯 OFFER IS NULL!")
+            }
+            override fun onSetSuccess() {}
+            override fun onCreateFailure(error: String?) {
+                Log.e(TAG, "🎯 FAILED TO CREATE OFFER: $error")
+            }
+            override fun onSetFailure(error: String?) {
+                Log.e(TAG, "🎯 SDP SET FAILURE: $error")
+            }
+        }, constraints)
+        Log.d(TAG, "🎯 createOffer() call completed, waiting for callbacks...")
+    }
+    
     fun createPeerConnection(peerId: String) {
         if (!isWebRTCInitialized) {
             Log.w(TAG, "WebRTC not initialized yet")
             return
         }
         
-        currentPeerConnection = WebRTCManager.createPeerConnection(peerId, object : PeerConnection.Observer {
+        // Store the reference BEFORE creating the PeerConnection to avoid race condition
+        // This way, any observer callbacks (like onRenegotiationNeeded) will have access to currentPeerConnection
+        
+        val peerConnection = WebRTCManager.createPeerConnection(peerId, object : PeerConnection.Observer {
             override fun onIceCandidate(candidate: IceCandidate) {
                 Log.d(TAG, "ICE candidate generated: ${candidate.sdp}")
                 signalingClient?.sendIceCandidate(candidate)
@@ -286,6 +395,28 @@ class WebRTCService : Service() {
             
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
                 Log.d(TAG, "ICE connection state changed: $state")
+                
+                when (state) {
+                    PeerConnection.IceConnectionState.FAILED -> {
+                        Log.e(TAG, "🚨 ICE CONNECTION FAILED! Possible causes:")
+                        Log.e(TAG, "  - STUN servers not reachable")
+                        Log.e(TAG, "  - Network/firewall blocking WebRTC")
+                        Log.e(TAG, "  - Need TURN servers")
+                        Log.e(TAG, "  - Localhost connectivity issues")
+                        hudOverlayManager?.updateStatus("ICE connection failed")
+                    }
+                    PeerConnection.IceConnectionState.CONNECTED -> {
+                        Log.i(TAG, "🎉 ICE CONNECTION ESTABLISHED!")
+                        hudOverlayManager?.updateStatus("WebRTC connected")
+                    }
+                    PeerConnection.IceConnectionState.CHECKING -> {
+                        Log.i(TAG, "🔍 ICE checking connectivity...")
+                        hudOverlayManager?.updateStatus("Checking connection")
+                    }
+                    else -> {
+                        Log.d(TAG, "ICE state: $state")
+                    }
+                }
             }
             
             override fun onIceConnectionReceivingChange(receiving: Boolean) {
@@ -335,7 +466,32 @@ class WebRTCService : Service() {
             }
             
             override fun onRenegotiationNeeded() {
-                Log.d(TAG, "Renegotiation needed")
+                Log.i(TAG, "🔥 RENEGOTIATION NEEDED for peer: $peerId")
+                
+                // Prevent concurrent offers per WebRTC Perfect Negotiation pattern
+                if (makingOffer) {
+                    Log.w(TAG, "🔥 Already making offer, skipping renegotiation")
+                    return
+                }
+                
+                Log.d(TAG, "🔥 currentPeerConnection available: ${currentPeerConnection != null}")
+                
+                // Use currentPeerConnection with null safety - official WebRTC pattern
+                currentPeerConnection?.let { pc ->
+                    Log.i(TAG, "🔥 Launching coroutine to create offer")
+                    serviceScope.launch {
+                        try {
+                            makingOffer = true
+                            Log.i(TAG, "🔥 makingOffer = true, calling createOfferWithPeerConnection")
+                            createOfferWithPeerConnection(pc)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "🔥 FAILED to handle renegotiation", e)
+                        } finally {
+                            makingOffer = false
+                            Log.d(TAG, "🔥 makingOffer = false")
+                        }
+                    }
+                } ?: Log.e(TAG, "🔥 NO CURRENT PEERCONNECTION FOR RENEGOTIATION!")
             }
             
             override fun onAddTrack(receiver: RtpReceiver?, streams: Array<out MediaStream>?) {
@@ -347,11 +503,16 @@ class WebRTCService : Service() {
             }
         })
         
-        // Create DataChannelManager after PeerConnection is created
-        currentPeerConnection?.let { pc ->
+        // Store the peer connection reference IMMEDIATELY after creation
+        currentPeerConnection = peerConnection
+        Log.i(TAG, "🎯 PeerConnection created and stored IMMEDIATELY for peer: $peerId")
+        
+        // Now create DataChannelManager - any onRenegotiationNeeded callbacks will have currentPeerConnection available
+        peerConnection?.let { pc ->
+            Log.i(TAG, "🎯 Creating DataChannelManager - this will trigger onRenegotiationNeeded with currentPeerConnection available")
             dataChannelManager = DataChannelManager(pc, serviceScope)
-            Log.d(TAG, "DataChannelManager created for peer: $peerId")
-        }
+            Log.i(TAG, "🎯 DataChannelManager created for peer: $peerId")
+        } ?: Log.e(TAG, "🎯 PeerConnection is NULL - cannot create DataChannelManager!")
     }
     
     private fun handleDataChannelMessage(messageType: String, json: JSONObject) {
@@ -395,6 +556,11 @@ class WebRTCService : Service() {
     }
     
     private fun sendAudioViaDataChannel(audioData: ByteArray) {
+        // Use WebSocket direct streaming (MVP approach) - working perfectly!
+        sendAudioViaWebSocket(audioData)
+        
+        // Disable DataChannel audio to avoid duplication (WebSocket is working)
+        /*
         dataChannelManager?.let { dcManager ->
             // Create audio message for Companion Desktop
             val audioMessage = JSONObject().apply {
@@ -410,7 +576,28 @@ class WebRTCService : Service() {
             dcManager.sendMessage(audioMessage.toString())
             Log.v(TAG, "Audio data sent via DataChannel: ${audioData.size} bytes")
         } ?: run {
-            Log.w(TAG, "DataChannelManager not available, audio data dropped")
+            Log.v(TAG, "DataChannelManager not available, using WebSocket streaming")
+        }
+        */
+    }
+    
+    private fun sendAudioViaWebSocket(audioData: ByteArray) {
+        signalingClient?.let { client ->
+            // Create audio message for OpenAI Realtime API via WebSocket
+            val audioMessage = JSONObject().apply {
+                put("type", "audio_stream")
+                put("format", "pcm16")
+                put("sampleRate", 16000)
+                put("channels", 1)
+                put("timestamp", System.currentTimeMillis())
+                // Convert audio bytes to base64 for WebSocket transmission
+                put("data", android.util.Base64.encodeToString(audioData, android.util.Base64.NO_WRAP))
+            }
+            
+            client.sendMessage(audioMessage)
+            Log.v(TAG, "🎵 Audio streamed via WebSocket: ${audioData.size} bytes")
+        } ?: run {
+            Log.w(TAG, "SignalingClient not available for WebSocket streaming")
         }
     }
     
