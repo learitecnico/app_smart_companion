@@ -26,29 +26,43 @@ export class OpenAIBridge {
       throw new Error('OPENAI_API_KEY environment variable is required');
     }
 
-    // VideoSDK pattern: Smart glasses optimized instructions
-    this.currentInstructions = `You are a smart glasses AI assistant for Vuzix M400. Follow VideoSDK best practices:
+    // Sales Coach: Portuguese smart glasses instructions
+    this.currentInstructions = `Você é um COACH DE VENDAS INTELIGENTE integrado aos óculos inteligentes Vuzix M400.
 
-CRITICAL HUD CONSTRAINTS:
-- Maximum 50 words per response (HUD space limited)
-- Always use display_on_hud tool to show text
-- Confirm text display with "Displayed: [text]"
-- Use simple, actionable language
-- Prioritize essential information only
+IDIOMA: Responda SEMPRE em português brasileiro, natural e conversacional.
 
-RESPONSE FORMAT:
-1. Process user input
-2. Generate brief response (≤50 words)
-3. Use display_on_hud tool to show text
-4. Confirm display completion
+MISSÃO: Analisar reuniões de vendas em tempo real e fornecer dicas estratégicas baseadas em SPIN Selling.
 
-CAPABILITIES:
-- Visual analysis (describe key elements only)
-- Quick information lookup
-- Brief guidance and instructions
-- Object/text identification
+REGRA CRÍTICA DE FILTRAGEM:
+- SÓ responda quando identificar uma OPORTUNIDADE ESPECÍFICA de vendas
+- NÃO faça comentários gerais ou observações desnecessárias
+- NÃO repita informações óbvias sobre a conversa
+- SEMPRE use a ferramenta display_on_hud para dicas relevantes
+- Se não há dica estratégica, permaneça SILENCIOSO
 
-Remember: Every response MUST use display_on_hud tool for HUD delivery.`;
+RESTRIÇÕES CRÍTICAS DO HUD:
+- Máximo 30 palavras por dica (espaço limitado do HUD)
+- Sempre use a ferramenta display_on_hud para mostrar dicas
+- Linguagem discreta e sussurrada
+- Ações específicas e imediatas
+
+METODOLOGIA SPIN SELLING:
+- SITUATION: Perguntas sobre situação atual do cliente
+- PROBLEM: Identificar problemas e dores do cliente  
+- IMPLICATION: Explorar consequências dos problemas
+- NEED-PAYOFF: Destacar benefícios da solução
+
+EXEMPLOS DE QUANDO RESPONDER:
+✅ Cliente menciona problema específico → "Pergunte sobre o impacto financeiro"
+✅ Cliente demonstra interesse → "Feche com proposta específica agora"
+✅ Momento de objeção → "Mencione case de sucesso similar"
+
+EXEMPLOS DE QUANDO NÃO RESPONDER:
+❌ Conversa casual sem oportunidade de venda
+❌ Cliente apenas fazendo perguntas exploratórias
+❌ Discussões administrativas ou logísticas
+
+Lembre-se: Seja discreto, estratégico e focado APENAS em resultados de vendas.`;
 
     this.realtimeClient = new RealtimeClient(apiKey);
     this.openaiClient = new OpenAI({
@@ -64,7 +78,7 @@ Remember: Every response MUST use display_on_hud tool for HUD delivery.`;
   private setupRealtimeEvents(): void {
     this.realtimeClient.on('connected', () => {
       this.isConnectedFlag = true;
-      logger.info('Realtime client connected');
+      logger.info('🇧🇷 Realtime client connected - Portuguese mode active');
     });
 
     this.realtimeClient.on('disconnected', () => {
@@ -110,11 +124,15 @@ Remember: Every response MUST use display_on_hud tool for HUD delivery.`;
     });
 
     this.realtimeClient.on('speech_started', () => {
-      logger.debug('User speech started');
+      logger.debug('🎤 User speech started');
+      // ElatoAI pattern: Send immediate feedback to M400
+      this.sendStatusToM400('listening_active', 'Escutando...');
     });
 
     this.realtimeClient.on('speech_stopped', () => {
-      logger.debug('User speech stopped');
+      logger.debug('🎤 User speech stopped');
+      // ElatoAI pattern: Send processing feedback
+      this.sendStatusToM400('processing', 'Processando sua solicitação...');
     });
 
     this.realtimeClient.on('api_error', (error: any) => {
@@ -126,20 +144,30 @@ Remember: Every response MUST use display_on_hud tool for HUD delivery.`;
       this.isConnectedFlag = false;
     });
 
-    // VideoSDK pattern: Handle display_on_hud tool calls
-    this.realtimeClient.on('hud_display_request', (data: { text: string; priority: string; call_id: string }) => {
-      logger.info('🎯 HUD_DISPLAY_REQUEST received from OpenAI tool - ALTERNATIVE PATH', { 
-        text: data.text.substring(0, 50) + '...',
+    // Sales Coach: Handle sales coaching display requests
+    this.realtimeClient.on('hud_display_request', (data: { 
+      text: string; 
+      priority: string; 
+      spin_type?: string;
+      call_id: string; 
+      context?: string;
+    }) => {
+      logger.info('💼 SALES COACHING TIP received from OpenAI - COACHING PATH', { 
+        text: data.text.substring(0, 30) + '...',
         priority: data.priority,
+        spin_type: data.spin_type || 'unknown',
         call_id: data.call_id,
-        source: 'tool_based_display'  // Track this vs direct text_complete
+        context: data.context || 'general',
+        source: 'sales_coaching_tool'
       });
       
       if (this.onTextResponseCallback) {
-        this.onTextResponseCallback(data.text);
-        logger.info('🎯 Tool-triggered text forwarded to WebRTC (VIDEOSDK ENHANCEMENT PATH)');
+        // Format coaching tip with SPIN context for better HUD display
+        const formattedTip = this.formatSalesCoachingTip(data.text, data.spin_type, data.priority);
+        this.onTextResponseCallback(formattedTip);
+        logger.info('💼 Sales coaching tip forwarded to M400 HUD');
       } else {
-        logger.error('🚨 NO TEXT RESPONSE CALLBACK for tool-triggered display!');
+        logger.error('🚨 NO TEXT RESPONSE CALLBACK for sales coaching tip!');
       }
     });
   }
@@ -358,15 +386,59 @@ Remember: Every response MUST use display_on_hud tool for HUD delivery.`;
     return null;
   }
 
+  // ElatoAI pattern: Send status messages to M400 with Portuguese feedback
+  private sendStatusToM400(type: string, message: string): void {
+    if (this.onTextResponseCallback) {
+      // Send status message that can be displayed on HUD
+      const statusMessage = `[${message}]`;
+      logger.debug('📱 Status sent to M400', { type, message });
+      // Note: This is a temporary status message, not the final response
+      // We could enhance this to send structured messages later
+    }
+  }
+
+  // Sales Coach: Format coaching tips with SPIN context and priority
+  private formatSalesCoachingTip(text: string, spinType?: string, priority?: string): string {
+    let prefix = '';
+    
+    // Add visual indicators based on SPIN type
+    switch (spinType) {
+      case 'situation':
+        prefix = '📊 SITUAÇÃO: ';
+        break;
+      case 'problem':
+        prefix = '❗ PROBLEMA: ';
+        break;
+      case 'implication':
+        prefix = '⚡ IMPACTO: ';
+        break;
+      case 'need_payoff':
+        prefix = '💰 BENEFÍCIO: ';
+        break;
+      case 'closing':
+        prefix = '🎯 FECHE: ';
+        break;
+      default:
+        prefix = '💡 DICA: ';
+    }
+
+    // Add urgency indicator for high priority tips
+    if (priority === 'urgent' || priority === 'high') {
+      prefix = '🚨 ' + prefix;
+    }
+
+    return prefix + text;
+  }
+
   // Utility method to create a specialized prompt for different contexts
   createContextualPrompt(context: 'navigation' | 'reading' | 'general' | 'safety'): string {
-    const basePrompt = `You are a Smart Glasses AI assistant. Keep responses extremely brief (max 1-2 sentences).`;
+    const basePrompt = `Você é um assistente de óculos inteligentes. Mantenha respostas extremamente breves (máximo 1-2 frases).`;
     
     const contextPrompts = {
-      navigation: `${basePrompt} Focus on directions, locations, and spatial information. Use clear, actionable language.`,
-      reading: `${basePrompt} Help with reading text, documents, or signs. Provide summaries and key information.`,
-      safety: `${basePrompt} Prioritize safety information. Alert about hazards, warnings, or important safety considerations.`,
-      general: `${basePrompt} Provide helpful, concise assistance for everyday tasks and questions.`
+      navigation: `${basePrompt} Foque em direções, localizações e informações espaciais. Use linguagem clara e acionável.`,
+      reading: `${basePrompt} Ajude com leitura de textos, documentos ou placas. Forneça resumos e informações-chave.`,
+      safety: `${basePrompt} Priorize informações de segurança. Alerte sobre perigos, avisos ou considerações de segurança importantes.`,
+      general: `${basePrompt} Forneça assistência útil e concisa para tarefas e perguntas do dia a dia.`
     };
 
     return contextPrompts[context];

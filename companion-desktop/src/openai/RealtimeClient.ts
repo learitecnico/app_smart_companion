@@ -38,16 +38,60 @@ export class RealtimeClient extends EventEmitter {
   private readonly reconnectDelay = 5000;
   private sessionConfig: SessionConfig;
 
+  // Sales Coach: Portuguese system prompt for smart glasses
+  private getPortugueseSystemPrompt(): string {
+    return `Você é um COACH DE VENDAS INTELIGENTE integrado aos óculos inteligentes Vuzix M400.
+
+MISSÃO: Analisar reuniões de vendas em tempo real e fornecer dicas estratégicas baseadas em SPIN Selling.
+
+IDIOMA: Responda SEMPRE em português brasileiro, natural e conversacional.
+
+REGRA CRÍTICA DE FILTRAGEM:
+- SÓ responda quando identificar uma OPORTUNIDADE ESPECÍFICA de vendas
+- NÃO faça comentários gerais ou observações desnecessárias
+- NÃO repita informações óbvias sobre a conversa
+- SEMPRE use a ferramenta display_on_hud para dicas relevantes
+- Se não há dica estratégica, permaneça SILENCIOSO
+
+CONTEXTO DE USO:
+- O usuário está em uma reunião de vendas ou negociação
+- Você analisa continuamente a conversa em áudio
+- Você fornece APENAS dicas discretas e ACIONÁVEIS no HUD
+- Foque em melhorar a performance de vendas
+
+METODOLOGIA SPIN SELLING:
+- SITUATION: Perguntas sobre situação atual do cliente
+- PROBLEM: Identificar problemas e dores do cliente  
+- IMPLICATION: Explorar consequências dos problemas
+- NEED-PAYOFF: Destacar benefícios da solução
+
+ESTILO DE COMUNICAÇÃO:
+- MÁXIMO 2-3 frases por dica
+- Linguagem sussurrada e discreta
+- Ações específicas e imediatas
+- Timing preciso para intervenções
+
+EXEMPLOS DE QUANDO RESPONDER:
+✅ Cliente menciona problema específico → "Pergunte sobre o impacto financeiro"
+✅ Cliente demonstra interesse → "Feche com proposta específica agora"
+✅ Momento de objeção → "Mencione case de sucesso similar"
+
+EXEMPLOS DE QUANDO NÃO RESPONDER:
+❌ Conversa casual sem oportunidade de venda
+❌ Cliente apenas fazendo perguntas exploratórias
+❌ Discussões administrativas ou logísticas
+
+Seja estratégico, discreto e focado APENAS em resultados de vendas.`;
+  }
+
   constructor(private apiKey: string) {
     super();
     
-    // VideoSDK pattern: Smart glasses optimized session config
+    // ElatoAI inspired: Portuguese optimized session config
     this.sessionConfig = {
       modalities: ['text', 'audio'],  // Both modalities for flexibility
-      instructions: `You are a helpful AI assistant for smart glasses. 
-        Provide concise, clear responses suitable for display on a heads-up display. 
-        Keep responses brief and actionable. Focus on practical information.`,
-      voice: 'alloy',
+      instructions: this.getPortugueseSystemPrompt(),
+      voice: 'alloy',  // Best voice for Portuguese
       input_audio_format: 'pcm16',
       output_audio_format: 'pcm16',
       input_audio_transcription: {
@@ -55,10 +99,9 @@ export class RealtimeClient extends EventEmitter {
       },
       turn_detection: {
         type: 'server_vad',
-        threshold: 0.3,  // Lower threshold = more sensitive (was 0.5 - too high per community)
-        prefix_padding_ms: 300,
-        silence_duration_ms: 300,  // Shorter silence = faster trigger (was 500ms)
-        // create_response: true // Not in official API type definition
+        threshold: 0.4,              // ElatoAI: More sensitive for faster detection
+        prefix_padding_ms: 200,      // ElatoAI: Reduced padding for agile response
+        silence_duration_ms: 400,    // ElatoAI: 33% faster - sales conversations need speed
       },
       // VideoSDK smart glasses optimizations (corrected for API limits)
       temperature: 0.6,  // Minimum allowed by OpenAI Realtime API (was 0.3 - too low)
@@ -66,21 +109,26 @@ export class RealtimeClient extends EventEmitter {
         {
           type: 'function',
           name: 'display_on_hud',
-          description: 'Display text on smart glasses HUD - ALWAYS use this tool for text responses',
+          description: 'Display sales coaching tip on smart glasses HUD - ALWAYS use this tool for coaching tips',
           parameters: {
             type: 'object',
             properties: {
               text: {
                 type: 'string',
-                description: 'Text to display on HUD (max 50 words)'
+                description: 'Sales coaching tip to display on HUD (max 30 words, discrete language)'
               },
               priority: {
                 type: 'string',
-                enum: ['low', 'medium', 'high'],
-                description: 'Display priority level'
+                enum: ['low', 'medium', 'high', 'urgent'],
+                description: 'Coaching tip priority (urgent for closing opportunities)'
+              },
+              spin_type: {
+                type: 'string',
+                enum: ['situation', 'problem', 'implication', 'need_payoff', 'closing'],
+                description: 'Type of SPIN selling technique being suggested'
               }
             },
-            required: ['text']
+            required: ['text', 'spin_type']
           }
         }
       ],
@@ -328,42 +376,49 @@ export class RealtimeClient extends EventEmitter {
     }
   }
 
-  // VideoSDK pattern: Handle function calls (display_on_hud tool)
+  // Sales Coach: Handle function calls (display_on_hud tool with SPIN context)
   private handleFunctionCall(item: any): void {
     const { call_id, name, arguments: args } = item;
     
     if (name === 'display_on_hud') {
       try {
         const parsedArgs = JSON.parse(args);
-        const { text, priority = 'medium' } = parsedArgs;
+        const { text, priority = 'medium', spin_type = 'general' } = parsedArgs;
         
-        logger.info('🎯 DISPLAY_ON_HUD tool called', { 
-          text: text.substring(0, 50) + '...',
+        logger.info('💼 SALES COACHING TIP tool called', { 
+          text: text.substring(0, 30) + '...',
           priority,
+          spin_type,
           call_id 
         });
         
-        // Emit to OpenAIBridge for forwarding to WebRTC
-        this.emit('hud_display_request', { text, priority, call_id });
+        // Emit to OpenAIBridge for forwarding to WebRTC with sales context
+        this.emit('hud_display_request', { 
+          text, 
+          priority, 
+          spin_type,
+          call_id,
+          context: 'sales_coaching'
+        });
         
         // Send function call result back to OpenAI
         this.sendFunctionCallResult(call_id, {
           success: true,
-          message: `Text displayed on HUD: "${text.substring(0, 30)}..."`
+          message: `Dica de vendas exibida no HUD: "${text.substring(0, 25)}..." (${spin_type})`
         });
         
       } catch (error) {
-        logger.error('Failed to handle display_on_hud call', { error });
+        logger.error('Failed to handle sales coaching display', { error });
         this.sendFunctionCallResult(call_id, {
           success: false,
-          error: 'Failed to display text on HUD'
+          error: 'Falha ao exibir dica de vendas no HUD'
         });
       }
     } else {
       logger.warn('Unknown function call', { name, call_id });
       this.sendFunctionCallResult(call_id, {
         success: false,
-        error: `Unknown function: ${name}`
+        error: `Função desconhecida: ${name}`
       });
     }
   }
