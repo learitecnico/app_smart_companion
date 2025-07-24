@@ -90,18 +90,25 @@ Seu objetivo: implementar o MVP descrito em PROJECT_BRIEF.md com a menor complex
    - Liste arquivos-chave do módulo que vamos alterar.
 4. Resuma em 5 linhas: o que vamos fazer agora + dependências.
 
-## ESTADO ATUAL DO PROJETO (2025-07-23)
-- **Fase:** Fase 3 INICIADA ✅ (Conexão M400↔Desktop FUNCIONANDO!)
-- **Breakthrough:** Android 13+ Network Security Policy resolvido - WebRTC conectando
-- **Status:** `"webrtc":true, "signaling":1` - M400 conectado ao Companion Desktop
-- **Próxima ação:** Testes end-to-end de áudio e validação de latência <600ms
-- **Arquivos críticos:** SignalingClient.kt, WebRTCService.kt, network_security_config.xml
+## ESTADO ATUAL DO PROJETO (2025-07-24)
+- **Fase:** Debug audio_transcript.done ✅ (Pipeline M400↔Desktop↔OpenAI FUNCIONANDO!)
+- **Breakthrough:** WebSocket audio streaming completo, OpenAI respondendo
+- **Status:** `response.audio_transcript.done` chegando mas `event.transcript` undefined
+- **Problema atual:** Texto não sendo extraído do evento OpenAI (debug implementado)
+- **Arquivos críticos:** RealtimeClient.ts, OpenAIBridge.ts (debug enhancements)
+
+## 🚨 REGRA CRÍTICA - COMPANION DESKTOP
+**⚠️ NUNCA iniciar companion desktop via terminal do Claude Code!**
+- **Problema:** Process fica associado ao terminal Claude, causando conflitos
+- **Solução:** SEMPRE pedir ao usuário para iniciar companion manualmente
+- **Comando:** Usuário executa `npm run dev` em terminal próprio
 
 ## LIÇÕES CRÍTICAS APRENDIDAS
 - **SEMPRE consultar documentação oficial PRIMEIRO** ao encontrar problemas
 - Network Security Policy do Android 13+ bloqueia WebSocket CLEARTEXT por padrão
 - ActionMenuActivity requer `super.onCreateActionMenu()` chamada (documentação Vuzix)
 - Debug sistemático com logs padronizados é essencial para troubleshooting
+- **NUNCA iniciar companion no terminal Claude** - causa conflitos de processo/porta
 
 ## DOCUMENTAÇÃO ESSENCIAL DE REFERÊNCIA
 - **`docs/references/VideoSDK_OpenAI_Realtime_API.md`** - Padrões oficiais OpenAI Realtime API

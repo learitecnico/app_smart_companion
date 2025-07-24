@@ -111,17 +111,49 @@
   - Health endpoint: http://localhost:3001/health respondendo ✅
   - WebRTC Manager: Pronto para conexões ✅
 
-### 🎯 PRONTO PARA TESTE M400 ↔ DESKTOP
-1. **Instalação e Conexão M400**
-   - Instalar APK via ADB no M400 ⏳
-   - Verificar conectividade de rede M400 ↔ PC ⏳
-   - Estabelecer conexão WebRTC ⏳
+### 🚨 REGRA CRÍTICA - NÃO INICIAR COMPANION NO TERMINAL CLAUDE
+**⚠️ IMPORTANTE:** NUNCA iniciar companion desktop via terminal do Claude Code
+- **Problema:** Process permanece associado ao terminal Claude, causando conflitos de porta
+- **Solução:** SEMPRE pedir ao usuário para iniciar companion manualmente
+- **Comando correto:** Usuário executa `npm run dev` em seu próprio terminal
 
-2. **Validação Audio Pipeline**
-   - Captura de áudio no M400 (16kHz mono)
-   - Transmissão via WebRTC para Desktop
-   - Processamento OpenAI Realtime API
-   - Retorno de texto para HUD M400
+## 🎯 ESTADO ATUAL - DEBUG AUDIO_TRANSCRIPT.DONE (24/07/2025 - 14:50)
+
+### ✅ PROGRESSO RECENTE:
+- [x] **Pipeline M400→Desktop→OpenAI FUNCIONANDO completamente**
+  - Áudio 16kHz sendo transmitido via WebSocket ✅
+  - OpenAI Realtime API respondendo com eventos ✅
+  - `response.audio_transcript.done` chegando mas transcript undefined ❌
+
+- [x] **DEBUG ENHANCEMENTS IMPLEMENTADOS (commit 3869b95)**
+  - Enhanced logging para evento `audio_transcript.done`
+  - Marcadores de confirmação v2025-07-24-14h-transcript-debug
+  - Full event structure logging + event keys validation
+  - Diagnostic endpoint HTTP para verificação de versão
+
+### 🔍 PROBLEMA ATUAL:
+**OpenAI enviando `response.audio_transcript.done` mas `event.transcript` é undefined**
+- Evento chegando: ✅ CONFIRMADO (logs mostram recebimento)
+- Propriedade transcript: ❌ UNDEFINED (texto não sendo extraído)
+- Debug implementado: ✅ PRONTO (aguardando teste com companion reiniciado)
+
+### 🎯 PRÓXIMOS PASSOS:
+1. **Usuário reinicia companion** (aplicar debug enhancements)
+2. **Teste com M400** (falar para gerar eventos OpenAI)
+3. **Análise logs** (identificar estrutura real do evento)
+4. **Correção código** (usar propriedade correta para texto)
+
+## 🎯 VALIDATION PIPELINE ATUAL
+1. **Instalação e Conexão M400** ✅ FUNCIONANDO
+   - APK instalado via ADB no M400 ✅
+   - Conectividade de rede M400 ↔ PC ✅
+   - Conexão WebRTC estabelecida ✅
+
+2. **Audio Pipeline Parcialmente Funcionando**
+   - Captura de áudio no M400 (16kHz mono) ✅
+   - Transmissão via WebSocket para Desktop ✅
+   - Processamento OpenAI Realtime API ✅
+   - **BLOCKER:** Retorno de texto para HUD M400 ❌ (transcript undefined)
 
 #### Fase 3: Snapshots
 5. **Integrar Camera com DataChannel (parcialmente feito)**
