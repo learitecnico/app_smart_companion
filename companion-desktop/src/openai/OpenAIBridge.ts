@@ -56,7 +56,9 @@ Remember: Every response MUST use display_on_hud tool for HUD delivery.`;
     });
 
     this.setupRealtimeEvents();
-    logger.info('OpenAI Bridge initialized');
+    logger.info('🔥 OpenAI Bridge initialized with ENHANCED TRANSCRIPT DEBUG (v2025-07-24-14h)', {
+      debugFeatures: ['fullEvent', 'eventKeys', 'transcriptValidation']
+    });
   }
 
   private setupRealtimeEvents(): void {

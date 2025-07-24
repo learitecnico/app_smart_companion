@@ -288,13 +288,19 @@ export class RealtimeClient extends EventEmitter {
 
       case 'response.audio_transcript.done':
         logger.info('🎯 AUDIO TRANSCRIPT COMPLETED - contains TEXT from audio response!', { 
-          transcript: event.transcript?.substring(0, 100) + '...' || 'No transcript'
+          transcript: event.transcript?.substring(0, 100) + '...' || 'No transcript',
+          fullEvent: JSON.stringify(event).substring(0, 500) + '...'  // Debug: show full event structure
         });
         
         // This contains the TEXT version of the audio response!
         if (event.transcript) {
           this.emit('text_complete', event.transcript);  // Emit as text_complete for compatibility
           logger.info('🎯 Audio transcript forwarded as text_complete for HUD display');
+        } else {
+          logger.warn('🚨 AUDIO TRANSCRIPT DONE but no transcript property found!', { 
+            eventKeys: Object.keys(event),
+            eventType: event.type
+          });
         }
         
         this.emit('audio_transcript_complete', event.transcript);

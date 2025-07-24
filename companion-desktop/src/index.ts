@@ -44,6 +44,8 @@ class CompanionApp {
         name: 'Smart Companion Desktop',
         version: '1.0.0',
         status: 'running',
+        debugVersion: 'v2025-07-24-14h-transcript-debug', // 🔥 Confirmation marker
+        features: ['enhanced-transcript-debug', 'full-event-logging', 'event-keys-validation'],
         timestamp: new Date().toISOString()
       });
     });
